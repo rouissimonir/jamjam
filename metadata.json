@@ -1,0 +1,6 @@
+{
+  "name": "Screw Jam: Tactile Workshop",
+  "description": "A 2.5D layered physics puzzle game built with Phaser 3, Matter.js, React, and Capacitor featuring per-layer collision masks, pendulum physics, occlusion checks, and a Workshop Renovation meta-layer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

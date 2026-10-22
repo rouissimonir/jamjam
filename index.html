@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Screw Jam" />
+    <meta name="format-detection" content="telephone=no" />
+    <script>
+      (function () {
+        try {
+          var nativeFetch = window.fetch;
+          if (typeof nativeFetch === 'function') {
+            Object.defineProperty(window, 'fetch', {
+              value: nativeFetch.bind(window),
+              writable: true,
+              configurable: true
+            });
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <title>Screw Jam: Tactile Workshop</title>
+    <meta name="description" content="A 2.5D layered physics puzzle game built with Phaser 3, Matter.js, React, and Capacitor featuring per-layer collision masks, pendulum physics, occlusion checks, and a Workshop Renovation meta-layer." />
+    <meta property="og:title" content="Screw Jam: Tactile Workshop" />
+    <meta property="og:description" content="A 2.5D layered physics puzzle game built with Phaser 3, Matter.js, React, and Capacitor featuring per-layer collision masks, pendulum physics, occlusion checks, and a Workshop Renovation meta-layer." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Titan+One&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#0B0F17] text-[#F8FAFC] antialiased selection:bg-amber-500 selection:text-slate-950 overflow-hidden select-none touch-none">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

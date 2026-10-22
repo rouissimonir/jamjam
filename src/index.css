@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .font-game-display {
+    font-family: 'Fredoka', 'Outfit', sans-serif;
+  }
+
+  .font-game-titan {
+    font-family: 'Titan One', 'Fredoka', 'Outfit', sans-serif;
+  }
+
+  /* Crisp casual-game outlined white text with 3D bottom drop shadow */
+  .text-game-outline {
+    color: #ffffff;
+    -webkit-text-stroke: 3.5px #141822;
+    paint-order: stroke fill;
+    text-shadow: 0 3px 0 #141822, 0 5px 8px rgba(0, 0, 0, 0.55);
+  }
+
+  .text-game-outline-sm {
+    color: #ffffff;
+    -webkit-text-stroke: 2.4px #141822;
+    paint-order: stroke fill;
+    text-shadow: 0 2px 0 #141822;
+  }
+
+  /* Tactile 3D Sky-Blue Claim Button (Matches Reference Image Bottom CTA) */
+  .btn-3d-blue {
+    position: relative;
+    background: linear-gradient(180deg, #47C4FF 0%, #249BFF 100%);
+    border: 2.6px solid #141824;
+    box-shadow:
+      0 6px 0 #1D58E8,
+      0 8.5px 0 #141824,
+      0 14px 24px rgba(0, 0, 0, 0.5),
+      inset 0 2.5px 0 rgba(255, 255, 255, 0.72);
+    transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .btn-3d-blue:hover:not(:disabled) {
+    background: linear-gradient(180deg, #5BCEFF 0%, #2FA6FF 100%);
+  }
+
+  .btn-3d-blue:active:not(:disabled) {
+    transform: translateY(4px);
+    box-shadow:
+      0 2px 0 #1D58E8,
+      0 4px 0 #141824,
+      0 6px 10px rgba(0, 0, 0, 0.35),
+      inset 0 2px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  /* Tactile 3D Lime-Green Play/Action Button */
+  .btn-3d-green {
+    position: relative;
+    background: linear-gradient(180deg, #68F028 0%, #38C712 100%);
+    border: 2.6px solid #141824;
+    box-shadow:
+      0 5px 0 #1E8E0A,
+      0 7.5px 0 #141824,
+      0 10px 18px rgba(0, 0, 0, 0.45),
+      inset 0 2.5px 0 rgba(255, 255, 255, 0.7);
+    transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .btn-3d-green:active:not(:disabled) {
+    transform: translateY(4px);
+    box-shadow:
+      0 1.5px 0 #1E8E0A,
+      0 3.5px 0 #141824,
+      inset 0 2px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  /* Tactile 3D Golden-Amber Overclock / Atelier Button */
+  .btn-3d-amber {
+    position: relative;
+    background: linear-gradient(180deg, #FFE042 0%, #FFA200 100%);
+    border: 2.6px solid #141824;
+    box-shadow:
+      0 5px 0 #C46200,
+      0 7.5px 0 #141824,
+      0 10px 18px rgba(0, 0, 0, 0.45),
+      inset 0 2.5px 0 rgba(255, 255, 255, 0.78);
+    transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .btn-3d-amber:active:not(:disabled) {
+    transform: translateY(4px);
+    box-shadow:
+      0 1.5px 0 #C46200,
+      0 3.5px 0 #141824,
+      inset 0 2px 0 rgba(255, 255, 255, 0.55);
+  }
+
+  /* Tactile 3D Slate / Toy Booster Button */
+  .btn-3d-slate {
+    position: relative;
+    background: linear-gradient(180deg, #2D3B58 0%, #1C2539 100%);
+    border: 2.2px solid #111520;
+    box-shadow:
+      0 4px 0 #0E131F,
+      0 6px 0 #090C14,
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.25);
+    transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .btn-3d-slate:active:not(:disabled) {
+    transform: translateY(3px);
+    box-shadow:
+      0 1px 0 #0E131F,
+      0 3px 0 #090C14,
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+}
+
+@keyframes floatBounce {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-4px) scale(1.025);
+  }
+}
+
+@keyframes coinFlyUp {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(0.9) rotate(0deg);
+  }
+  65% {
+    opacity: 1;
+    transform: translate(92px, -280px) scale(1.18) rotate(180deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(118px, -370px) scale(0.55) rotate(360deg);
+  }
+}
+
+@keyframes spinGearSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spinGearReverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-float-bounce {
+  animation: floatBounce 2.6s ease-in-out infinite;
+}
+
+.animate-coin-fly {
+  animation: coinFlyUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-gear-slow {
+  animation: spinGearSlow 22s linear infinite;
+}
+
+.animate-gear-reverse {
+  animation: spinGearReverse 18s linear infinite;
+}
+
+.animate-gear-fast {
+  animation: spinGearSlow 2.4s linear infinite;
+}
