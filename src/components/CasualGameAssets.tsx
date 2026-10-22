@@ -1111,3 +1111,345 @@ export const BrassScrewChestSvg: React.FC<BrassScrewChestSvgProps> = ({
   );
 };
 
+/**
+ * 13. Expressive 3D Artisan Companion Medallion Portrait (Clara, Nora, or Viktor)
+ */
+export const ArtisanAvatarSvg: React.FC<{
+  themeId: 'stained_glass' | 'knit_yarn' | 'retro_gadget';
+  size?: number;
+}> = ({ themeId, size = 36 }) => {
+  const accentColor =
+    themeId === 'stained_glass'
+      ? '#F59E0B'
+      : themeId === 'knit_yarn'
+      ? '#F43F5E'
+      : '#38BDF8';
+  const hairColor =
+    themeId === 'stained_glass'
+      ? '#9A3412'
+      : themeId === 'knit_yarn'
+      ? '#B45309'
+      : '#475569';
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      className="shrink-0 overflow-visible select-none"
+      aria-hidden="true"
+    >
+      {/* 3D Brass & Enamel Medallion Frame */}
+      <circle
+        cx="24"
+        cy="25.5"
+        r="21"
+        fill="#0D121F"
+        stroke="#141824"
+        strokeWidth="2.8"
+      />
+      <circle
+        cx="24"
+        cy="23.5"
+        r="21"
+        fill={accentColor}
+        stroke="#141824"
+        strokeWidth="2.8"
+      />
+      <circle
+        cx="24"
+        cy="23.5"
+        r="17.5"
+        fill="#1B253B"
+        stroke="#141824"
+        strokeWidth="2"
+      />
+
+      {/* Shoulders / Artisan Tunic */}
+      <path
+        d="M 11 38 C 13 30, 35 30, 37 38"
+        fill={accentColor}
+        stroke="#141824"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
+
+      {/* Head & Warm Face */}
+      <circle
+        cx="24"
+        cy="22"
+        r="9.2"
+        fill="#FDE68A"
+        stroke="#141824"
+        strokeWidth="2.2"
+      />
+
+      {/* Hair / Cap by Artisan */}
+      <path
+        d="M 14.5 21 C 14.5 12, 33.5 12, 33.5 21 C 30 16.5, 18 16.5, 14.5 21 Z"
+        fill={hairColor}
+        stroke="#141824"
+        strokeWidth="2"
+      />
+
+      {/* Eyes & Warm Smile */}
+      <circle cx="20.6" cy="22.2" r="1.4" fill="#141824" />
+      <circle cx="27.4" cy="22.2" r="1.4" fill="#141824" />
+      <path
+        d="M 21 26 C 22.5 27.6, 25.5 27.6, 27 26"
+        fill="none"
+        stroke="#141824"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+
+      {/* Theme-Specific Artisan Prop Badge (Glass Loupe / Knitting Needles / Horology Monocle) */}
+      {themeId === 'stained_glass' && (
+        <circle
+          cx="27.5"
+          cy="22"
+          r="3.6"
+          fill="#38BDF8"
+          fillOpacity="0.35"
+          stroke="#FFE042"
+          strokeWidth="1.8"
+        />
+      )}
+      {themeId === 'knit_yarn' && (
+        <g>
+          <line
+            x1="12"
+            y1="12"
+            x2="20"
+            y2="17"
+            stroke="#FFE042"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          />
+          <circle cx="11.5" cy="11.5" r="2.5" fill="#F43F5E" stroke="#141824" strokeWidth="1.5" />
+        </g>
+      )}
+      {themeId === 'retro_gadget' && (
+        <circle
+          cx="20.5"
+          cy="22"
+          r="3.8"
+          fill="none"
+          stroke="#38BDF8"
+          strokeWidth="2"
+        />
+      )}
+    </svg>
+  );
+};
+
+/**
+ * 14. Interactive 3-Stage Story Chapter Restoration Scene Illustration
+ * Renders progressive visual transformation from Stage 0 (Frostbound/Tangled) -> Stage 3 (Radiant Masterpiece)
+ */
+export const StorySceneIllustrationSvg: React.FC<{
+  themeId: 'stained_glass' | 'knit_yarn' | 'retro_gadget';
+  stage: 0 | 1 | 2 | 3;
+}> = ({ themeId, stage }) => {
+  return (
+    <svg
+      width="100%"
+      height="96"
+      viewBox="0 0 280 96"
+      className="rounded-xl overflow-hidden border-2 border-[#141824] shadow-inner select-none"
+      aria-label={`Story Restoration Scene Stage ${stage} of 3`}
+    >
+      <defs>
+        <linearGradient id="storyBgCold" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor={stage >= 2 ? '#1E1B4B' : '#0F172A'} />
+          <stop
+            offset="100%"
+            stopColor={
+              stage === 3
+                ? '#78350F'
+                : stage >= 1
+                ? '#1E293B'
+                : '#090D16'
+            }
+          />
+        </linearGradient>
+        <radialGradient id="storyWarmGlow" cx="50%" cy="50%" r="55%">
+          <stop
+            offset="0%"
+            stopColor={stage === 3 ? '#FDE047' : stage >= 1 ? '#F59E0B' : '#38BDF8'}
+            stopOpacity={stage === 0 ? '0.18' : stage === 3 ? '0.62' : '0.36'}
+          />
+          <stop offset="100%" stopColor="#0F172A" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {/* Scene Backdrop */}
+      <rect x="0" y="0" width="280" height="96" fill="url(#storyBgCold)" />
+      <circle cx="140" cy="48" r="88" fill="url(#storyWarmGlow)" />
+
+      {/* STAGE 0: Winter Frost Icicles at top (melts away as stage increases) */}
+      {stage < 3 && (
+        <g opacity={stage === 0 ? 0.9 : stage === 1 ? 0.55 : 0.25}>
+          <polygon points="18,0 26,22 34,0" fill="#7DD3FC" stroke="#141824" strokeWidth="1.5" />
+          <polygon points="34,0 40,15 46,0" fill="#BAE6FD" stroke="#141824" strokeWidth="1.5" />
+          <polygon points="232,0 240,20 248,0" fill="#7DD3FC" stroke="#141824" strokeWidth="1.5" />
+          <polygon points="248,0 255,14 262,0" fill="#BAE6FD" stroke="#141824" strokeWidth="1.5" />
+        </g>
+      )}
+
+      {/* THEME 1: Stained-Glass Conservatory Rose Arch */}
+      {themeId === 'stained_glass' && (
+        <g transform="translate(140, 50)">
+          {/* Outer Gothic Brass Arch */}
+          <path
+            d="M -52 38 L -52 -6 C -52 -36, 52 -36, 52 -6 L 52 38 Z"
+            fill="#111827"
+            stroke={stage >= 1 ? '#FBBF24' : '#475569'}
+            strokeWidth="3"
+          />
+          {/* Stage 1+: Lower Warm Amber & Crimson Petals */}
+          <circle
+            cx="0"
+            cy="-4"
+            r="30"
+            fill={stage >= 1 ? '#F59E0B' : '#1E293B'}
+            fillOpacity={stage >= 1 ? 0.85 : 0.4}
+            stroke="#141824"
+            strokeWidth="2.4"
+          />
+          {/* Stage 2+: Solar Keyhole Prism & Emerald/Azure Vitrail Segments */}
+          {stage >= 2 && (
+            <g>
+              <circle cx="-15" cy="-4" r="9" fill="#FF3B5C" stroke="#141824" strokeWidth="1.8" />
+              <circle cx="15" cy="-4" r="9" fill="#00E575" stroke="#141824" strokeWidth="1.8" />
+              <circle cx="0" cy="-19" r="9" fill="#00B8FF" stroke="#141824" strokeWidth="1.8" />
+              <circle cx="0" cy="11" r="9" fill="#A855F7" stroke="#141824" strokeWidth="1.8" />
+            </g>
+          )}
+          {/* Center Star-Keyhole Core */}
+          <circle
+            cx="0"
+            cy="-4"
+            r="8"
+            fill={stage >= 2 ? '#FFE042' : '#38BDF8'}
+            stroke="#141824"
+            strokeWidth="2"
+          />
+          {/* Stage 3 Masterpiece: Blooming Golden Clockwork Orchids on Left & Right */}
+          {stage === 3 && (
+            <g>
+              <circle cx="-78" cy="10" r="14" fill="#FF3B5C" stroke="#141824" strokeWidth="2.2" />
+              <circle cx="-78" cy="10" r="6" fill="#FFE042" stroke="#141824" strokeWidth="1.6" />
+              <circle cx="78" cy="10" r="14" fill="#00E575" stroke="#141824" strokeWidth="2.2" />
+              <circle cx="78" cy="10" r="6" fill="#FFE042" stroke="#141824" strokeWidth="1.6" />
+            </g>
+          )}
+        </g>
+      )}
+
+      {/* THEME 2: Wool Craze Haberdashery Loom & Sun-Spun Tapestry */}
+      {themeId === 'knit_yarn' && (
+        <g transform="translate(140, 48)">
+          {/* Mahogany Loom Posts */}
+          <rect x="-74" y="-34" width="10" height="68" rx="3" fill="#9A3412" stroke="#141824" strokeWidth="2.2" />
+          <rect x="64" y="-34" width="10" height="68" rx="3" fill="#9A3412" stroke="#141824" strokeWidth="2.2" />
+          <rect x="-80" y="-36" width="160" height="9" rx="4" fill="#D97706" stroke="#141824" strokeWidth="2.2" />
+
+          {/* Stage 1+: Taut Golden Merino Warp Threads */}
+          {[-48, -32, -16, 0, 16, 32, 48].map((wx) => (
+            <line
+              key={wx}
+              x1={wx}
+              y1="-27"
+              x2={wx}
+              y2="32"
+              stroke={stage >= 1 ? '#FDE047' : '#475569'}
+              strokeWidth="2.2"
+              strokeDasharray={stage === 0 ? '4 4' : undefined}
+            />
+          ))}
+
+          {/* Stage 2+: Woven Crimson & Emerald Tapestry Banner */}
+          {stage >= 1 && (
+            <rect
+              x="-54"
+              y="-20"
+              width="108"
+              height={stage === 1 ? 22 : stage === 2 ? 36 : 48}
+              rx="6"
+              fill={stage >= 2 ? '#E11D48' : '#F59E0B'}
+              stroke="#141824"
+              strokeWidth="2.4"
+            />
+          )}
+          {stage >= 2 && (
+            <circle cx="0" cy="2" r="13" fill="#FFE042" stroke="#141824" strokeWidth="2.2" />
+          )}
+          {stage === 3 && (
+            <g>
+              <circle cx="-34" cy="2" r="8" fill="#00E575" stroke="#141824" strokeWidth="2" />
+              <circle cx="34" cy="2" r="8" fill="#00B8FF" stroke="#141824" strokeWidth="2" />
+            </g>
+          )}
+        </g>
+      )}
+
+      {/* THEME 3: Dormant Clockwork Songbird Automaton */}
+      {themeId === 'retro_gadget' && (
+        <g transform="translate(140, 50)">
+          {/* Brass Perch & Escapement Ring */}
+          <circle
+            cx="0"
+            cy="-2"
+            r="32"
+            fill="#111827"
+            stroke={stage >= 1 ? '#FBBF24' : '#475569'}
+            strokeWidth="2.8"
+          />
+          {/* Spread Golden Wings on Stage 2+ */}
+          {stage >= 2 && (
+            <g>
+              <path
+                d="M -18 -2 C -54 -26, -72 -6, -42 12 Z"
+                fill={stage === 3 ? '#FFE042' : '#F59E0B'}
+                stroke="#141824"
+                strokeWidth="2.2"
+              />
+              <path
+                d="M 18 -2 C 54 -26, 72 -6, 42 12 Z"
+                fill={stage === 3 ? '#FFE042' : '#F59E0B'}
+                stroke="#141824"
+                strokeWidth="2.2"
+              />
+            </g>
+          )}
+          {/* Songbird Body & Sapphire Tourbillon Core */}
+          <ellipse
+            cx="0"
+            cy="0"
+            rx="20"
+            ry="15"
+            fill={stage >= 1 ? '#F59E0B' : '#475569'}
+            stroke="#141824"
+            strokeWidth="2.4"
+          />
+          <circle
+            cx="0"
+            cy="0"
+            r="7"
+            fill={stage >= 2 ? '#00B8FF' : '#94A3B8'}
+            stroke="#141824"
+            strokeWidth="2"
+          />
+          {/* Stage 3 Masterpiece: Acoustic Chime Waves */}
+          {stage === 3 && (
+            <g stroke="#7DD3FC" strokeWidth="2.2" fill="none" strokeLinecap="round">
+              <path d="M -68 -18 C -78 -8, -78 8, -68 18" />
+              <path d="M 68 -18 C 78 -8, 78 8, 68 18" />
+            </g>
+          )}
+        </g>
+      )}
+    </svg>
+  );
+};

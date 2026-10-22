@@ -12,6 +12,7 @@ import {
   FinialSkinId,
   FINIAL_SKINS,
   FINIAL_SKIN_ORDER,
+  STORY_CHAPTERS,
 } from '../game/rules.ts';
 import {
   GoldCoinPill,
@@ -21,6 +22,8 @@ import {
   LevelCompletedBannerSvg,
   AtelierMasterpieceShowcaseSvg,
   BrassScrewChestSvg,
+  ArtisanAvatarSvg,
+  StorySceneIllustrationSvg,
 } from './CasualGameAssets.tsx';
 
 interface VictoryModalProps {
@@ -35,6 +38,8 @@ interface VictoryModalProps {
   onClaimScrewChest?: () => void;
   finialSkinId?: FinialSkinId;
   onSelectFinialSkin?: (skinId: FinialSkinId) => void;
+  storyStage?: 0 | 1 | 2 | 3;
+  onAdvanceStoryStage?: () => void;
   onNextLevel: () => void;
   onRestart: () => void;
   onOpenWorkshop: () => void;
@@ -55,6 +60,8 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   onClaimScrewChest,
   finialSkinId = 'royal_brass',
   onSelectFinialSkin,
+  storyStage = 1,
+  onAdvanceStoryStage,
   onNextLevel,
   onRestart,
   onOpenWorkshop,
@@ -381,18 +388,79 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
               </div>
             </div>
 
-            {/* Section 2: Star-Keyhole Clasp (NEW FEATURE 5 / 10) Blueprint Preview */}
-            <div className="bg-[#111726] border-2 border-[#141824] rounded-2xl p-2.5 flex flex-col gap-1">
+            {/* Section 2: Wool Craze-Style Story Chapter Restoration (Stage X / 3 -> +100 $ Masterpiece Bonus) */}
+            {(() => {
+              const chapter = STORY_CHAPTERS[themeId];
+              const currentSpec = chapter.stages[storyStage];
+              const nextSpec = storyStage < 3 ? chapter.stages[(storyStage + 1) as 1 | 2 | 3] : null;
+              const canAffordNext = Boolean(nextSpec && bolts + bonusAdded >= nextSpec.costBolts);
+              return (
+                <div className="bg-[#111726] border-2 border-[#141824] rounded-2xl p-2.5 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ArtisanAvatarSvg themeId={themeId} size={30} />
+                      <div className="min-w-0">
+                        <div className="font-game-display font-bold text-xs text-amber-300 truncate">
+                          {chapter.chapterTitle}
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-300 truncate">
+                          {chapter.artisanName} · Stage {storyStage}/3 ({currentSpec.title})
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold text-emerald-400 shrink-0">
+                      {storyStage === 3 ? 'MASTERPIECE!' : '+100$ GOAL'}
+                    </span>
+                  </div>
+
+                  <StorySceneIllustrationSvg themeId={themeId} stage={storyStage} />
+
+                  <p className="text-[10px] text-slate-300 leading-snug">
+                    {currentSpec.caption}
+                  </p>
+
+                  {nextSpec ? (
+                    <button
+                      type="button"
+                      disabled={!canAffordNext}
+                      onClick={() => {
+                        if (!canAffordNext) return;
+                        haptics.boxCompleted();
+                        soundManager.playWorkshopUpgrade();
+                        onAdvanceStoryStage?.();
+                      }}
+                      className={`w-full py-1.5 px-3 rounded-xl font-game-display font-bold text-xs flex items-center justify-center gap-1.5 ${
+                        canAffordNext
+                          ? 'btn-3d-amber text-slate-950 cursor-pointer'
+                          : 'bg-slate-800 border border-slate-700 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <span>
+                        Restore Stage {storyStage + 1}/3: {nextSpec.title} ({nextSpec.costBolts} $)
+                        {storyStage + 1 === 3 ? ' -> +100 $ Bonus!' : ''}
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="text-[10px] font-mono font-bold text-emerald-300 text-center py-1 bg-emerald-950/40 rounded-lg border border-emerald-500/40">
+                      Chapter Masterpiece Restored (+100 $ Claimed & +15 $ Clear Perk Active!)
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Section 3: Board Hazards Live Status (KEY/LOCK, ICE×2, CHAIN) */}
+            <div className="bg-[#111726] border-2 border-[#141824] rounded-2xl p-2 flex flex-col gap-0.5">
               <div className="flex items-center justify-between">
-                <span className="font-game-display font-bold text-xs text-amber-300">
-                  {featureProgress.featureName} ({featureProgress.label})
+                <span className="font-game-display font-bold text-[11px] text-amber-300">
+                  {featureProgress.featureName} · Frost (ICE) · Twin Chain
                 </span>
-                <span className="text-[10px] font-mono font-bold text-emerald-400">
+                <span className="text-[9px] font-mono font-bold text-emerald-400">
                   LIVE ON BOARD
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300 leading-snug">
-                Pulling a golden <strong className="text-amber-300">KEY</strong> clasp on the board automatically unlocks any <strong className="text-amber-200">LOCK</strong> padlock pin and awards <strong className="text-emerald-300">+15 $ Bonus Coins</strong>!
+              <p className="text-[10px] text-slate-300 leading-snug">
+                Crack <strong className="text-sky-300">ICE×2</strong> frost (+10 $), pull <strong className="text-amber-300">KEY</strong> clasps (+15 $), and double-extract <strong className="text-amber-200">CHAIN</strong> twins (+15 $)!
               </p>
             </div>
 

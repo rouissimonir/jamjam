@@ -21,6 +21,12 @@ import {
   SCREW_CHEST_REWARD_BOLTS,
   FinialSkinId,
   FINIAL_SKINS,
+  StoryProgressState,
+  createInitialStoryProgress,
+  advanceStoryChapterStep,
+  getStoryClearBonusBolts,
+  getArtisanCompanionLine,
+  STORY_CHAPTERS,
 } from './game/rules.ts';
 import { LEVELS, CAPGO_OTA_BONUS_LEVELS, LevelConfig } from './game/levels.ts';
 import { GameHUD } from './components/GameHUD.tsx';
@@ -195,6 +201,12 @@ export default function App() {
   });
   const [screwChestsClaimed, setScrewChestsClaimed] = useState<number>(0);
   const [finialSkinId, setFinialSkinId] = useState<FinialSkinId>('royal_brass');
+  const [storyProgress, setStoryProgress] = useState<StoryProgressState>(() =>
+    createInitialStoryProgress()
+  );
+  const [artisanLine, setArtisanLine] = useState<string>(() =>
+    `${STORY_CHAPTERS.stained_glass.artisanName}: "Crack the ICE×2 frost & pull KEY to free the CHAIN twins!"`
+  );
 
   const phaserContainerRef = useRef<HTMLDivElement>(null);
   const phaserGameRef = useRef<Phaser.Game | null>(null);
@@ -236,11 +248,13 @@ export default function App() {
     );
     setWinStreak((s) => s + 1);
     const finialBonus = FINIAL_SKINS[finialSkinId]?.extraClearBolts || 0;
-    setBolts((b) => b + currentLevel.rewardBolts + finialBonus);
+    const storyBonus = getStoryClearBonusBolts(storyProgress, themeId);
+    setBolts((b) => b + currentLevel.rewardBolts + finialBonus + storyBonus);
+    setArtisanLine(getArtisanCompanionLine(themeId, 'victory'));
     setIslandBanner('Haptics: Success');
     setGameState('gameover');
     setModalType('victory');
-  }, [currentLevel.id, currentLevel.rewardBolts, finialSkinId, levelStartTime]);
+  }, [currentLevel.id, currentLevel.rewardBolts, finialSkinId, storyProgress, themeId, levelStartTime]);
 
   const handlePinTapped = useCallback(
     (pinId: string, color: PinColor) => {
@@ -315,6 +329,7 @@ export default function App() {
       if (bonusBolts > 0) {
         setBolts((b) => b + bonusBolts);
       }
+      setArtisanLine(getArtisanCompanionLine(themeId, 'key_unlocked'));
       setIslandBanner(`KEY Unlocked +${bonusBolts}$!`);
       setOcclusionToast(
         `Star-Keyhole Unlocked! ${unlockedPinIds.length} Padlock Clasp freed (+${bonusBolts} $)`
@@ -323,7 +338,7 @@ export default function App() {
         setOcclusionToast(null);
       }, 2200);
     },
-    []
+    [themeId]
   );
 
   const handlePadlockedPinTapped = useCallback(
@@ -337,6 +352,73 @@ export default function App() {
       }, 2200);
     },
     []
+  );
+
+  const handleFrostedPinTapped = useCallback(
+    (_pinId: string, remainingFrost: number) => {
+      setArtisanLine(getArtisanCompanionLine(themeId, 'ice_blocked'));
+      setIslandBanner(`Frosted ICE×${remainingFrost}!`);
+      setOcclusionToast(
+        `Frosted Clasp (ICE×${remainingFrost})! Extract another pin on the same plate first to crack the frost.`
+      );
+      setTimeout(() => {
+        setOcclusionToast(null);
+      }, 2200);
+    },
+    [themeId]
+  );
+
+  const handleFrostUpdated = useCallback(
+    (crackedPinIds: string[], shatteredPinIds: string[], bonusBolts: number) => {
+      if (bonusBolts > 0) {
+        setBolts((b) => b + bonusBolts);
+      }
+      if (shatteredPinIds.length > 0) {
+        setArtisanLine(getArtisanCompanionLine(themeId, 'ice_shattered'));
+        setIslandBanner(`Frost Shattered +${bonusBolts}$!`);
+        setOcclusionToast(
+          `Winter Frost Shattered! Clasp warmed and ready (+${bonusBolts} $ Bonus Coins)`
+        );
+        setTimeout(() => {
+          setOcclusionToast(null);
+        }, 2000);
+      } else if (crackedPinIds.length > 0) {
+        setArtisanLine(getArtisanCompanionLine(themeId, 'ice_cracked'));
+        setIslandBanner('Frost Cracked -> ICE×1');
+      }
+    },
+    [themeId]
+  );
+
+  const handleChainBlockedPinTapped = useCallback(
+    (_pinId: string, _partnerPinId: string, _reason: string) => {
+      setArtisanLine(getArtisanCompanionLine(themeId, 'chain_blocked'));
+      setIslandBanner('Chain-Linked! Free Twin');
+      setOcclusionToast(
+        'Twin Brass Chain-Link (CHAIN)! Uncover both tethered clasps first so they can unscrew together.'
+      );
+      setTimeout(() => {
+        setOcclusionToast(null);
+      }, 2200);
+    },
+    [themeId]
+  );
+
+  const handleChainDoublePulled = useCallback(
+    (_primaryPinId: string, _partnerPinId: string, bonusBolts: number) => {
+      if (bonusBolts > 0) {
+        setBolts((b) => b + bonusBolts);
+      }
+      setArtisanLine(getArtisanCompanionLine(themeId, 'chain_pulled'));
+      setIslandBanner(`Twin Chain +${bonusBolts}$!`);
+      setOcclusionToast(
+        `Twin Brass Chain Released! Both synchronized clasps extracted together (+${bonusBolts} $)`
+      );
+      setTimeout(() => {
+        setOcclusionToast(null);
+      }, 2200);
+    },
+    [themeId]
   );
 
   const handlePlateCleared = useCallback(
@@ -360,6 +442,10 @@ export default function App() {
     onTelemetryChange: setTelemetry,
     onKeyUnlocked: handleKeyUnlocked,
     onPadlockedPinTapped: handlePadlockedPinTapped,
+    onFrostedPinTapped: handleFrostedPinTapped,
+    onFrostUpdated: handleFrostUpdated,
+    onChainBlockedPinTapped: handleChainBlockedPinTapped,
+    onChainDoublePulled: handleChainDoublePulled,
   };
 
   const initPhaserGame = useCallback(
@@ -577,7 +663,23 @@ export default function App() {
       | ScrewJamScene
       | undefined;
     scene?.setTheme(nextTheme);
+    setArtisanLine(
+      `${STORY_CHAPTERS[nextTheme].artisanName}: "${STORY_CHAPTERS[nextTheme].chapterTitle} awaits restoration!"`
+    );
     setIslandBanner(`3rd-Gen: ${TACTILE_THEMES[nextTheme].shortLabel}`);
+  };
+
+  const handleAdvanceStoryStage = () => {
+    const res = advanceStoryChapterStep(storyProgress, themeId, bolts);
+    if (!res.advanced) return;
+    setStoryProgress(res.updatedProgress);
+    setBolts(res.nextBolts);
+    setArtisanLine(getArtisanCompanionLine(themeId, 'story_restored'));
+    if (res.masterpieceJustCompleted) {
+      setIslandBanner(`Masterpiece! +${res.bonusBoltsAwarded}$`);
+    } else {
+      setIslandBanner(`Story Stage ${res.newStage}/3 Restored!`);
+    }
   };
 
   const handleSelectFinialSkin = (nextSkin: FinialSkinId) => {
@@ -823,6 +925,8 @@ export default function App() {
           bolts={bolts}
           winStreak={winStreak}
           comboState={comboState}
+          storyStage={storyProgress.stageByTheme[themeId]}
+          artisanLine={artisanLine}
           themeId={themeId}
           hapticIntensity={hapticIntensity}
           onCycleHapticIntensity={handleCycleHapticIntensity}
@@ -1057,6 +1161,8 @@ export default function App() {
             onClaimScrewChest={handleClaimScrewChest}
             finialSkinId={finialSkinId}
             onSelectFinialSkin={handleSelectFinialSkin}
+            storyStage={storyProgress.stageByTheme[themeId]}
+            onAdvanceStoryStage={handleAdvanceStoryStage}
             onNextLevel={handleNextLevel}
             onRestart={handleRestartLevel}
             onOpenWorkshop={() => {
@@ -1094,6 +1200,8 @@ export default function App() {
             onSelectTheme={handleSelectTheme}
             finialSkinId={finialSkinId}
             onSelectFinialSkin={handleSelectFinialSkin}
+            storyStage={storyProgress.stageByTheme[themeId]}
+            onAdvanceStoryStage={handleAdvanceStoryStage}
             boosters={preLevelBoosters}
             onToggleBooster={handleToggleBooster}
             adsRemovedPermanently={adsRemovedPermanently}

@@ -1400,4 +1400,482 @@ export const FINIAL_SKINS: Record<FinialSkinId, FinialSkinSpec> = {
   },
 };
 
+/**
+ * Tier-2 Board Hazard 1: Crystal Frost Caps (`ICE×2` -> `ICE×1` -> `Shattered!`)
+ * A pin encased in winter crystal frost cannot be extracted directly until sibling pins sharing
+ * at least one attached plate are extracted to crack and shatter its frost shell.
+ */
+export const FROST_SHATTER_BONUS_BOLTS = 10;
 
+export interface PinFrostCandidate {
+  id: string;
+  attachedPlateIds: string[];
+  frostLayers?: number;
+}
+
+export interface FrostUpdateResult {
+  nextFrostMap: Record<string, number>;
+  crackedPinIds: string[];
+  shatteredPinIds: string[];
+  bonusBolts: number;
+}
+
+export function createInitialFrostMap(pins: PinFrostCandidate[]): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const p of pins) {
+    if (p.frostLayers && p.frostLayers > 0) {
+      map[p.id] = Math.floor(p.frostLayers);
+    }
+  }
+  return map;
+}
+
+export function evaluatePinFrostTap(
+  targetPinId: string,
+  frostMap: Record<string, number>
+): { allowed: boolean; remainingFrost: number } {
+  const rem = frostMap[targetPinId] ?? 0;
+  if (rem > 0) {
+    return { allowed: false, remainingFrost: rem };
+  }
+  return { allowed: true, remainingFrost: 0 };
+}
+
+export function decrementFrostForSharedPlatePins(
+  pulledPinId: string,
+  allPins: PinFrostCandidate[],
+  currentFrostMap: Record<string, number>,
+  removedPinIds: ReadonlySet<string>
+): FrostUpdateResult {
+  const pulledPin = allPins.find((p) => p.id === pulledPinId);
+  if (!pulledPin) {
+    return {
+      nextFrostMap: { ...currentFrostMap },
+      crackedPinIds: [],
+      shatteredPinIds: [],
+      bonusBolts: 0,
+    };
+  }
+
+  const sharedPlateSet = new Set(pulledPin.attachedPlateIds);
+  const nextFrostMap: Record<string, number> = { ...currentFrostMap };
+  const crackedPinIds: string[] = [];
+  const shatteredPinIds: string[] = [];
+
+  for (const pin of allPins) {
+    if (pin.id === pulledPinId || removedPinIds.has(pin.id)) continue;
+    const currentLayers = nextFrostMap[pin.id] ?? 0;
+    if (currentLayers <= 0) continue;
+
+    // Check if this frosted pin shares at least one plate with the pulled pin (or is on the same layer if plate cleared)
+    const sharesPlate = pin.attachedPlateIds.some((pid) => sharedPlateSet.has(pid));
+    if (sharesPlate) {
+      const updated = Math.max(0, currentLayers - 1);
+      nextFrostMap[pin.id] = updated;
+      if (updated === 0) {
+        shatteredPinIds.push(pin.id);
+      } else {
+        crackedPinIds.push(pin.id);
+      }
+    }
+  }
+
+  return {
+    nextFrostMap,
+    crackedPinIds,
+    shatteredPinIds,
+    bonusBolts: shatteredPinIds.length * FROST_SHATTER_BONUS_BOLTS,
+  };
+}
+
+/**
+ * Tier-2 Board Hazard 2: Twin Brass Chain-Link Clasps (`CHAIN`)
+ * Two pins linked by a taut brass watchmaker chain (`chainedWithPinId`) must BOTH be un-occluded,
+ * unlocked, and unfrosted before either can be pulled. Pulling either pin automatically extracts
+ * its linked twin in a synchronized double extraction (+15 $ Chain Bonus)!
+ */
+export const CHAIN_LINK_BONUS_BOLTS = 15;
+
+export interface PinChainCandidate {
+  id: string;
+  color: PinColor;
+  chainedWithPinId?: string;
+  lockedByKeyPinId?: string;
+}
+
+export interface PinChainEvaluation {
+  allowed: boolean;
+  isChained: boolean;
+  partnerPinId: string | null;
+  partnerPinColor: PinColor | null;
+  blockedReason: 'partner_occluded' | 'partner_padlocked' | 'partner_frosted' | null;
+  chainBonusBolts: number;
+}
+
+export function evaluatePinChainLink(
+  targetPinId: string,
+  allPins: PinChainCandidate[],
+  removedPinIds: ReadonlySet<string>,
+  occludedPinIds: ReadonlySet<string>,
+  frostMap: Record<string, number> = {}
+): PinChainEvaluation {
+  const target = allPins.find((p) => p.id === targetPinId);
+  if (!target || !target.chainedWithPinId) {
+    return {
+      allowed: true,
+      isChained: false,
+      partnerPinId: null,
+      partnerPinColor: null,
+      blockedReason: null,
+      chainBonusBolts: 0,
+    };
+  }
+
+  const partner = allPins.find((p) => p.id === target.chainedWithPinId);
+  if (!partner || removedPinIds.has(partner.id)) {
+    return {
+      allowed: true,
+      isChained: false,
+      partnerPinId: null,
+      partnerPinColor: null,
+      blockedReason: null,
+      chainBonusBolts: 0,
+    };
+  }
+
+  // Check if partner is padlocked
+  if (partner.lockedByKeyPinId && !removedPinIds.has(partner.lockedByKeyPinId)) {
+    return {
+      allowed: false,
+      isChained: true,
+      partnerPinId: partner.id,
+      partnerPinColor: partner.color,
+      blockedReason: 'partner_padlocked',
+      chainBonusBolts: 0,
+    };
+  }
+
+  // Check if partner is frosted
+  if ((frostMap[partner.id] ?? 0) > 0) {
+    return {
+      allowed: false,
+      isChained: true,
+      partnerPinId: partner.id,
+      partnerPinColor: partner.color,
+      blockedReason: 'partner_frosted',
+      chainBonusBolts: 0,
+    };
+  }
+
+  // Check if partner is occluded (>25% covered by a higher layer plate)
+  if (occludedPinIds.has(partner.id)) {
+    return {
+      allowed: false,
+      isChained: true,
+      partnerPinId: partner.id,
+      partnerPinColor: partner.color,
+      blockedReason: 'partner_occluded',
+      chainBonusBolts: 0,
+    };
+  }
+
+  return {
+    allowed: true,
+    isChained: true,
+    partnerPinId: partner.id,
+    partnerPinColor: partner.color,
+    blockedReason: null,
+    chainBonusBolts: CHAIN_LINK_BONUS_BOLTS,
+  };
+}
+
+/**
+ * Wool Craze-Inspired Tactile Storytelling Engine:
+ * 3-Act Episodic Restoration Chapters + Reactive Artisan Companion
+ */
+export const STORY_CHAPTER_COMPLETION_BONUS_BOLTS = 100;
+
+export type ArtisanEventType =
+  | 'level_start'
+  | 'ice_blocked'
+  | 'ice_cracked'
+  | 'ice_shattered'
+  | 'chain_blocked'
+  | 'chain_pulled'
+  | 'key_unlocked'
+  | 'combo_fever'
+  | 'buffer_danger'
+  | 'victory'
+  | 'story_restored';
+
+export interface StoryStageSpec {
+  stage: 0 | 1 | 2 | 3;
+  title: string;
+  caption: string;
+  costBolts: number; // cost to advance TO this stage (0 for stage 0)
+  perkSummary: string;
+}
+
+export interface StoryChapterSpec {
+  themeId: TactileThemeId;
+  actLabel: string;
+  chapterTitle: string;
+  artisanName: string;
+  artisanTitle: string;
+  urgentHook: string;
+  accentHex: string;
+  stages: [StoryStageSpec, StoryStageSpec, StoryStageSpec, StoryStageSpec];
+}
+
+export const STORY_CHAPTERS: Record<TactileThemeId, StoryChapterSpec> = {
+  stained_glass: {
+    themeId: 'stained_glass',
+    actLabel: 'Act I · Vitrail Sanctuary',
+    chapterTitle: 'The Frozen Solstice Conservatory',
+    artisanName: 'Clara Vance',
+    artisanTitle: 'Master Glassmaker',
+    urgentHook:
+      'Winter frost (ICE) has sealed the cathedral greenhouse! Crack the frosted clasps and reglaze the rose arch before the starlight orchids freeze.',
+    accentHex: '#F59E0B',
+    stages: [
+      {
+        stage: 0,
+        title: 'Frostbound Lancet Arch',
+        caption: 'Bitter winter wind blows through shattered leaded panes and frozen brass clasps.',
+        costBolts: 0,
+        perkSummary: 'Awaiting Hearth Reglazing',
+      },
+      {
+        stage: 1,
+        title: 'Amber Brazier & Lower Petals',
+        caption: 'Warm amber stained glass seals the lower draft and kindles the brass conservatory hearth.',
+        costBolts: 35,
+        perkSummary: '+5 $ Warmth Bonus on Level Clears',
+      },
+      {
+        stage: 2,
+        title: 'Solar Keyhole Crown',
+        caption: 'Golden star-keyhole filigree focuses sunlight across the frosted greenhouse ribs.',
+        costBolts: 45,
+        perkSummary: '+10 $ Solar Prism Bonus on Level Clears',
+      },
+      {
+        stage: 3,
+        title: 'Radiant Solstice Sanctuary',
+        caption: 'The cathedral rose window blazes in full vitrail splendor as rare clockwork orchids bloom!',
+        costBolts: 50,
+        perkSummary: 'Masterpiece Complete (+100 $ Chapter Treasury + +15 $ Clear Bonus)',
+      },
+    ],
+  },
+  knit_yarn: {
+    themeId: 'knit_yarn',
+    actLabel: 'Act II · Wool Craze Loom',
+    chapterTitle: 'The Snowbound Haberdashery Tapestry',
+    artisanName: 'Nora Lind',
+    artisanTitle: 'Royal Tapestry Weaver',
+    urgentHook:
+      'Tangled brass chains (CHAIN) and frost have jammed the grand loom! Unpin the twin silk bobbins to weave the Sun-Spun Tapestry for the snowbound village.',
+    accentHex: '#F43F5E',
+    stages: [
+      {
+        stage: 0,
+        title: 'Tangled & Drafty Loom',
+        caption: 'Snapped warp threads and chained bobbins leave the royal tapestry unfinished in the cold.',
+        costBolts: 0,
+        perkSummary: 'Awaiting Warp Threading',
+      },
+      {
+        stage: 1,
+        title: 'Golden Merino Warp Restrung',
+        caption: 'Taut golden wool warp threads shimmer across the polished mahogany loom frame.',
+        costBolts: 35,
+        perkSummary: '+5 $ Loom Bonus on Level Clears',
+      },
+      {
+        stage: 2,
+        title: 'Crimson Rose Satin Stitch',
+        caption: 'Mother-of-pearl pins guide plush crimson and emerald wool into the central crest.',
+        costBolts: 45,
+        perkSummary: '+10 $ Haberdashery Bonus on Level Clears',
+      },
+      {
+        stage: 3,
+        title: 'The Sun-Spun Royal Tapestry',
+        caption: 'The finished golden wool tapestry radiates cozy warmth throughout the entire atelier!',
+        costBolts: 50,
+        perkSummary: 'Masterpiece Complete (+100 $ Chapter Treasury + +15 $ Clear Bonus)',
+      },
+    ],
+  },
+  retro_gadget: {
+    themeId: 'retro_gadget',
+    actLabel: 'Act III · Horology Tower',
+    chapterTitle: 'The Dormant Songbird Automaton',
+    artisanName: 'Viktor Kestrel',
+    artisanTitle: 'Grand Horologist',
+    urgentHook:
+      'The 100-year-old Astral Songbird has been padlocked (LOCK) since the Great Freeze. Free the chained gears to wind its mainspring and hear it sing!',
+    accentHex: '#38BDF8',
+    stages: [
+      {
+        stage: 0,
+        title: 'Silent Brass Songbird',
+        caption: 'Frozen escapement gears and locked mainsprings keep the mechanical nightingale mute.',
+        costBolts: 0,
+        perkSummary: 'Awaiting Mainspring Winding',
+      },
+      {
+        stage: 1,
+        title: 'Coiled Copper Mainspring',
+        caption: 'The primary barrel ticks back to life, warming the walnut and brass chassis.',
+        costBolts: 35,
+        perkSummary: '+5 $ Escapement Bonus on Level Clears',
+      },
+      {
+        stage: 2,
+        title: 'Sapphire Tourbillon Heart',
+        caption: 'Precision jewel bearings spin inside the songbird chest with harmonic resonance.',
+        costBolts: 45,
+        perkSummary: '+10 $ Chrono Bonus on Level Clears',
+      },
+      {
+        stage: 3,
+        title: 'The Singing Astral Nightingale',
+        caption: 'Golden clockwork wings spread wide as crystalline chime melodies echo across the city!',
+        costBolts: 50,
+        perkSummary: 'Masterpiece Complete (+100 $ Chapter Treasury + +15 $ Clear Bonus)',
+      },
+    ],
+  },
+};
+
+export interface StoryProgressState {
+  stageByTheme: Record<TactileThemeId, 0 | 1 | 2 | 3>;
+  masterpieceClaimedByTheme: Record<TactileThemeId, boolean>;
+}
+
+export function createInitialStoryProgress(): StoryProgressState {
+  return {
+    stageByTheme: {
+      stained_glass: 1,
+      knit_yarn: 1,
+      retro_gadget: 1,
+    },
+    masterpieceClaimedByTheme: {
+      stained_glass: false,
+      knit_yarn: false,
+      retro_gadget: false,
+    },
+  };
+}
+
+export interface AdvanceStoryResult {
+  updatedProgress: StoryProgressState;
+  nextBolts: number;
+  advanced: boolean;
+  newStage: 0 | 1 | 2 | 3;
+  masterpieceJustCompleted: boolean;
+  bonusBoltsAwarded: number;
+}
+
+export function advanceStoryChapterStep(
+  progress: StoryProgressState,
+  themeId: TactileThemeId,
+  currentBolts: number
+): AdvanceStoryResult {
+  const currentStage = progress.stageByTheme[themeId] ?? 0;
+  if (currentStage >= 3) {
+    return {
+      updatedProgress: progress,
+      nextBolts: currentBolts,
+      advanced: false,
+      newStage: 3,
+      masterpieceJustCompleted: false,
+      bonusBoltsAwarded: 0,
+    };
+  }
+
+  const nextStage = (currentStage + 1) as 1 | 2 | 3;
+  const chapter = STORY_CHAPTERS[themeId];
+  const nextStageSpec = chapter.stages[nextStage];
+  if (currentBolts < nextStageSpec.costBolts) {
+    return {
+      updatedProgress: progress,
+      nextBolts: currentBolts,
+      advanced: false,
+      newStage: currentStage,
+      masterpieceJustCompleted: false,
+      bonusBoltsAwarded: 0,
+    };
+  }
+
+  const masterpieceJustCompleted =
+    nextStage === 3 && !progress.masterpieceClaimedByTheme[themeId];
+  const bonusBoltsAwarded = masterpieceJustCompleted
+    ? STORY_CHAPTER_COMPLETION_BONUS_BOLTS
+    : 0;
+
+  const updatedProgress: StoryProgressState = {
+    stageByTheme: {
+      ...progress.stageByTheme,
+      [themeId]: nextStage,
+    },
+    masterpieceClaimedByTheme: {
+      ...progress.masterpieceClaimedByTheme,
+      [themeId]: progress.masterpieceClaimedByTheme[themeId] || masterpieceJustCompleted,
+    },
+  };
+
+  return {
+    updatedProgress,
+    nextBolts: currentBolts - nextStageSpec.costBolts + bonusBoltsAwarded,
+    advanced: true,
+    newStage: nextStage,
+    masterpieceJustCompleted,
+    bonusBoltsAwarded,
+  };
+}
+
+export function getStoryClearBonusBolts(
+  progress: StoryProgressState,
+  themeId: TactileThemeId
+): number {
+  const stage = progress.stageByTheme[themeId] ?? 0;
+  if (stage === 3) return 15;
+  if (stage === 2) return 10;
+  if (stage === 1) return 5;
+  return 0;
+}
+
+export function getArtisanCompanionLine(
+  themeId: TactileThemeId,
+  event: ArtisanEventType
+): string {
+  const chapter = STORY_CHAPTERS[themeId];
+  switch (event) {
+    case 'level_start':
+      return chapter.urgentHook;
+    case 'ice_blocked':
+      return `${chapter.artisanName}: "That clasp is sealed in winter frost (ICE)! Pull another pin on the same plate first to crack the ice."`;
+    case 'ice_cracked':
+      return `${chapter.artisanName}: "The winter frost is cracking! One more pull on that plate will shatter the ice!"`;
+    case 'ice_shattered':
+      return `${chapter.artisanName}: "Frost shattered (+10 $)! The clasp is warm and ready to extract!"`;
+    case 'chain_blocked':
+      return `${chapter.artisanName}: "Those twin clasps are chained together (CHAIN)! Uncover both pins so they can unscrew as a pair."`;
+    case 'chain_pulled':
+      return `${chapter.artisanName}: "Twin Chain-Link released (+15 $)! Both synchronized clasps extracted at once!"`;
+    case 'key_unlocked':
+      return `${chapter.artisanName}: "Brilliant! That golden KEY clasp unlocked the sealed padlock (+15 $)!"`;
+    case 'combo_fever':
+      return `${chapter.artisanName}: "Combo Fever! Your workshop rhythm is warming the entire sanctuary!"`;
+    case 'buffer_danger':
+      return `${chapter.artisanName}: "Careful—our 5-Hole Rail is nearly full! Use Crate Swap [S] or Magnet [25$]!"`;
+    case 'story_restored':
+      return `${chapter.artisanName}: "Look how warm and radiant the ${chapter.chapterTitle} looks now!"`;
+    case 'victory':
+    default:
+      return `${chapter.artisanName}: "Masterful extraction! Let's use these coins to restore the next stage of ${chapter.chapterTitle}!"`;
+  }
+}

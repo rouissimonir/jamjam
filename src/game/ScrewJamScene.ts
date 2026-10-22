@@ -17,6 +17,10 @@ import {
   evaluatePinKeyLock,
   FinialSkinId,
   FINIAL_SKINS,
+  createInitialFrostMap,
+  evaluatePinFrostTap,
+  decrementFrostForSharedPlatePins,
+  evaluatePinChainLink,
 } from './rules.ts';
 import { LEVELS, LevelConfig, LevelPlateDef, LevelPinDef } from './levels.ts';
 import { haptics } from './haptics.ts';
@@ -48,6 +52,10 @@ export interface SceneCallbacks {
   onTelemetryChange?: (telemetry: SceneTelemetry) => void;
   onKeyUnlocked?: (keyPinId: string, unlockedPinIds: string[], bonusBolts: number) => void;
   onPadlockedPinTapped?: (pinId: string, blockingKeyPinId: string) => void;
+  onFrostedPinTapped?: (pinId: string, remainingFrost: number) => void;
+  onFrostUpdated?: (crackedPinIds: string[], shatteredPinIds: string[], bonusBolts: number) => void;
+  onChainBlockedPinTapped?: (pinId: string, partnerPinId: string, reason: string) => void;
+  onChainDoublePulled?: (primaryPinId: string, partnerPinId: string, bonusBolts: number) => void;
 }
 
 interface DrillHoleOffset {
@@ -142,6 +150,7 @@ export class ScrewJamScene extends Phaser.Scene {
   private themeId: TactileThemeId = 'stained_glass';
   private finialSkinId: FinialSkinId = 'royal_brass';
   private removedPinIds: Set<string> = new Set();
+  private frostMap: Record<string, number> = {};
   private spatialTiltEnabled: boolean = true;
   private tiltX: number = 0.35; // 2.5D spatial tilt (-1..1)
   private tiltY: number = 0.45;
@@ -221,6 +230,7 @@ export class ScrewJamScene extends Phaser.Scene {
     this.plates.clear();
     this.pins.clear();
     this.removedPinIds.clear();
+    this.frostMap = createInitialFrostMap(this.levelConfig.pins);
     this.flyingPins = [];
     this.isInteracting = false;
     this.levelCompletedTriggered = false;
@@ -831,11 +841,15 @@ export class ScrewJamScene extends Phaser.Scene {
       g.fillCircle(-3.6, -3.6, 2.3);
     }
 
-    // Toolsmith Finial Skin Center Emblem & Star-Keyhole Clasp / Padlock Overlays
+    // Toolsmith Finial Skin Center Emblem & Star-Keyhole Clasp / Padlock / Frost / Chain Overlays
     const isPadlocked = Boolean(
       pin.def.lockedByKeyPinId && !this.removedPinIds.has(pin.def.lockedByKeyPinId)
     );
     const isKeyPin = Boolean(pin.def.isKeyPin);
+    const remainingFrost = this.frostMap[pin.def.id] ?? 0;
+    const isChained = Boolean(
+      pin.def.chainedWithPinId && !this.removedPinIds.has(pin.def.chainedWithPinId)
+    );
     const finialSpec = FINIAL_SKINS[this.finialSkinId] || FINIAL_SKINS.royal_brass;
 
     if (!pin.occluded && this.finialSkinId !== 'royal_brass') {
@@ -845,7 +859,26 @@ export class ScrewJamScene extends Phaser.Scene {
       g.fillCircle(0, 0, 2.6);
     }
 
-    if (isPadlocked) {
+    if (remainingFrost > 0) {
+      // Tier-2 Hazard 1: Translucent Faceted Crystal Frost Dome (ICE×2 / ICE×1)
+      g.fillStyle(0x38bdf8, remainingFrost >= 2 ? 0.56 : 0.35);
+      g.fillCircle(0, 0, r + 3.2);
+      g.lineStyle(remainingFrost >= 2 ? 2.5 : 1.8, 0xe0f2fe, 0.96);
+      g.strokeCircle(0, 0, r + 3.2);
+      // 6 Crystal Frost Facet Spikes / Crack Lines
+      for (let i = 0; i < 6; i++) {
+        const a = (i * Math.PI) / 3 + (remainingFrost === 1 ? 0.3 : 0);
+        g.lineStyle(1.5, 0xffffff, 0.88);
+        g.lineBetween(
+          Math.cos(a) * (r * 0.32),
+          Math.sin(a) * (r * 0.32),
+          Math.cos(a) * (r + 2.6),
+          Math.sin(a) * (r + 2.6)
+        );
+      }
+      pin.badgeText.setText(`ICE×${remainingFrost}`);
+      pin.badgeText.setVisible(true);
+    } else if (isPadlocked) {
       // 3D Brass Clockwork Padlock Collar & Keyhole Slot
       g.lineStyle(2.6, 0xf59e0b, 0.96);
       g.strokeCircle(0, 0, r + 2.8);
@@ -880,6 +913,15 @@ export class ScrewJamScene extends Phaser.Scene {
       g.fillCircle(0, -1.2, 3.2);
       g.fillRect(-1.2, 1, 2.4, 3.8);
       pin.badgeText.setText('KEY');
+      pin.badgeText.setVisible(true);
+    } else if (isChained) {
+      // Tier-2 Hazard 2: Twin Brass Chain-Link Shackle Collar (CHAIN)
+      g.lineStyle(2.4, 0xfbbf24, 0.96);
+      g.strokeCircle(0, 0, r + 2.8);
+      g.fillStyle(0xd97706, 1);
+      g.fillCircle(-r - 1.5, 0, 2.6);
+      g.fillCircle(r + 1.5, 0, 2.6);
+      pin.badgeText.setText('CHAIN');
       pin.badgeText.setVisible(true);
     } else if (!pin.occluded) {
       if (this.xrayMode || this.explodePeek) {
@@ -1010,15 +1052,86 @@ export class ScrewJamScene extends Phaser.Scene {
       return;
     }
 
-    this.pullPin(pin);
+    // Check Tier-2 Hazard 1: Crystal Frost Cap (ICE×2 / ICE×1)
+    const frostEval = evaluatePinFrostTap(pin.def.id, this.frostMap);
+    if (!frostEval.allowed) {
+      haptics.occludedBlocked();
+      soundManager.playFrostCrackChime(false);
+      this.spawnParticles(pin.def.x, pin.def.y, 0x38bdf8, 12, 'shard');
+      this.spawnShockwave(pin.def.x, pin.def.y, 0x38bdf8, 10, 38, 0.28, 2.8);
+      this.tweens.add({
+        targets: pin.container,
+        x: pin.container.x + 5,
+        duration: 36,
+        yoyo: true,
+        repeat: 3,
+        ease: 'Linear',
+      });
+      this.callbacks.onFrostedPinTapped?.(pin.def.id, frostEval.remainingFrost);
+      return;
+    }
+
+    // Check Tier-2 Hazard 2: Twin Brass Chain-Link Clasp (CHAIN)
+    const occludedSet = new Set<string>();
+    for (const p of this.pins.values()) {
+      if (!p.removed && p.occluded) {
+        occludedSet.add(p.def.id);
+      }
+    }
+    const chainEval = evaluatePinChainLink(
+      pin.def.id,
+      this.levelConfig.pins,
+      this.removedPinIds,
+      occludedSet,
+      this.frostMap
+    );
+    if (!chainEval.allowed && chainEval.partnerPinId) {
+      haptics.occludedBlocked();
+      soundManager.playBlockedThud();
+      this.spawnParticles(pin.def.x, pin.def.y, 0xfbbf24, 10, 'shard');
+      const partnerPin = this.pins.get(chainEval.partnerPinId);
+      if (partnerPin && !partnerPin.removed) {
+        this.spawnShockwave(partnerPin.def.x, partnerPin.def.y, 0xfbbf24, 10, 42, 0.34, 2.8);
+        this.tweens.add({
+          targets: partnerPin.container,
+          scale: 1.24,
+          duration: 120,
+          yoyo: true,
+          repeat: 1,
+          ease: 'Back.easeOut',
+        });
+      }
+      this.callbacks.onChainBlockedPinTapped?.(
+        pin.def.id,
+        chainEval.partnerPinId,
+        chainEval.blockedReason || 'partner_occluded'
+      );
+      return;
+    }
+
+    this.pullPin(pin, false);
   }
 
-  private pullPin(pin: RuntimePin) {
+  private pullPin(pin: RuntimePin, isChainPartnerPull: boolean = false) {
     const lockEval = evaluatePinKeyLock(
       pin.def.id,
       this.levelConfig.pins,
       this.removedPinIds
     );
+    const occludedSet = new Set<string>();
+    for (const p of this.pins.values()) {
+      if (!p.removed && p.occluded) {
+        occludedSet.add(p.def.id);
+      }
+    }
+    const chainEval = evaluatePinChainLink(
+      pin.def.id,
+      this.levelConfig.pins,
+      this.removedPinIds,
+      occludedSet,
+      this.frostMap
+    );
+
     pin.removed = true;
     this.removedPinIds.add(pin.def.id);
     haptics.pinPull();
@@ -1044,6 +1157,38 @@ export class ScrewJamScene extends Phaser.Scene {
       0.28,
       2.8
     );
+
+    // Crack or shatter Crystal Frost Caps (ICE) on sibling pins sharing the same plate!
+    const frostUpdate = decrementFrostForSharedPlatePins(
+      pin.def.id,
+      this.levelConfig.pins,
+      this.frostMap,
+      this.removedPinIds
+    );
+    this.frostMap = frostUpdate.nextFrostMap;
+    if (frostUpdate.crackedPinIds.length > 0 || frostUpdate.shatteredPinIds.length > 0) {
+      soundManager.playFrostCrackChime(frostUpdate.shatteredPinIds.length > 0);
+      for (const pid of [...frostUpdate.crackedPinIds, ...frostUpdate.shatteredPinIds]) {
+        const targetPin = this.pins.get(pid);
+        if (targetPin && !targetPin.removed) {
+          this.renderPinHead(targetPin);
+          this.spawnParticles(targetPin.def.x, targetPin.def.y, 0x7dd3fc, 16, 'shard');
+          this.spawnShockwave(targetPin.def.x, targetPin.def.y, 0x38bdf8, 10, 46, 0.34, 3.0);
+          this.tweens.add({
+            targets: targetPin.container,
+            scale: 1.2,
+            duration: 130,
+            yoyo: true,
+            ease: 'Back.easeOut',
+          });
+        }
+      }
+      this.callbacks.onFrostUpdated?.(
+        frostUpdate.crackedPinIds,
+        frostUpdate.shatteredPinIds,
+        frostUpdate.bonusBolts
+      );
+    }
 
     // If this pin is a Golden Star-Key Clasp, unlock its linked Padlocked Pins with a golden burst!
     if (lockEval.isKeyPin && lockEval.unlockedPinIds.length > 0) {
@@ -1105,6 +1250,20 @@ export class ScrewJamScene extends Phaser.Scene {
       colorHex: colorEntry.numHex,
       trailTimer: 0,
     });
+
+    // If this pin has an active Twin Brass Chain-Link partner, auto-pull the twin simultaneously!
+    if (!isChainPartnerPull && chainEval.isChained && chainEval.partnerPinId) {
+      const partnerPin = this.pins.get(chainEval.partnerPinId);
+      if (partnerPin && !partnerPin.removed) {
+        soundManager.playChainReleaseChime();
+        this.pullPin(partnerPin, true);
+        this.callbacks.onChainDoublePulled?.(
+          pin.def.id,
+          partnerPin.def.id,
+          chainEval.chainBonusBolts
+        );
+      }
+    }
   }
 
   /**
@@ -1290,6 +1449,38 @@ export class ScrewJamScene extends Phaser.Scene {
 
   private updateAndRenderParticles(dt: number) {
     this.particleGraphics.clear();
+
+    // Render 2.5D Taut Brass Watchmaker Chain Links between active Twin Chain-Link Clasps (CHAIN)
+    const drawnPairs = new Set<string>();
+    for (const pin of this.pins.values()) {
+      if (pin.removed || !pin.def.chainedWithPinId) continue;
+      const partner = this.pins.get(pin.def.chainedWithPinId);
+      if (!partner || partner.removed) continue;
+      const pairKey = [pin.def.id, partner.def.id].sort().join('--');
+      if (drawnPairs.has(pairKey)) continue;
+      drawnPairs.add(pairKey);
+
+      const x1 = pin.container.x;
+      const y1 = pin.container.y;
+      const x2 = partner.container.x;
+      const y2 = partner.container.y;
+
+      // Shadowed brass cable under-stroke + bright gold link chain
+      this.particleGraphics.lineStyle(5.2, 0x141824, 0.72);
+      this.particleGraphics.lineBetween(x1, y1 + 2, x2, y2 + 2);
+      this.particleGraphics.lineStyle(2.6, 0xfbbf24, 0.92);
+      this.particleGraphics.lineBetween(x1, y1, x2, y2);
+
+      // Discrete brass chain links along the span
+      const steps = 7;
+      for (let s = 1; s < steps; s++) {
+        const t = s / steps;
+        const lx = x1 + (x2 - x1) * t;
+        const ly = y1 + (y2 - y1) * t + Math.sin(t * Math.PI) * 3.5;
+        this.particleGraphics.fillStyle(s % 2 === 0 ? 0xfef08a : 0xd97706, 0.95);
+        this.particleGraphics.fillCircle(lx, ly, 2.8);
+      }
+    }
 
     // Render Kinetic Gravity Nudge directional shockwave arc when active
     if (this.nudgePulseAlpha > 0.02) {

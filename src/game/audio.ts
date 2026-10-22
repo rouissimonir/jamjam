@@ -410,7 +410,63 @@ class SoundManager {
       osc.stop(t + 0.22);
     });
   }
+
+  /**
+   * Crystal Frost Cap (ICE): Crystalline chime when winter frost cracks or shatters free
+   */
+  public playFrostCrackChime(shattered: boolean = false) {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const notes = shattered ? [1046.5, 1318.5, 1567.98, 2093] : [987.77, 1318.5];
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      const t = this.ctx!.currentTime + idx * 0.04;
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.12, t + 0.14);
+
+      gain.gain.setValueAtTime(0.16, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+
+      osc.connect(gain);
+      gain.connect(this.ctx!.destination);
+
+      osc.start(t);
+      osc.stop(t + 0.16);
+    });
+  }
+
+  /**
+   * Twin Brass Chain-Link (CHAIN): Metallic double-ratchet chime when both chained pins release together
+   */
+  public playChainReleaseChime() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      const t = this.ctx!.currentTime + idx * 0.045;
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+
+      gain.gain.setValueAtTime(0.18, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+
+      osc.connect(gain);
+      gain.connect(this.ctx!.destination);
+
+      osc.start(t);
+      osc.stop(t + 0.18);
+    });
+  }
 }
 
 export const soundManager = new SoundManager();
-

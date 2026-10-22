@@ -25,11 +25,16 @@ import {
   FinialSkinId,
   FINIAL_SKINS,
   FINIAL_SKIN_ORDER,
+  STORY_CHAPTERS,
 } from '../game/rules.ts';
 import {
   US_CROSS_LOCALIZATION_LOCALES,
   TARGET_KEYWORD_CLUSTERS,
 } from '../game/asoConfig.ts';
+import {
+  ArtisanAvatarSvg,
+  StorySceneIllustrationSvg,
+} from './CasualGameAssets.tsx';
 
 export interface RenovationStation {
   id: string;
@@ -54,6 +59,8 @@ interface WorkshopModalProps {
   onSelectTheme: (theme: TactileThemeId) => void;
   finialSkinId?: FinialSkinId;
   onSelectFinialSkin?: (skinId: FinialSkinId) => void;
+  storyStage?: 0 | 1 | 2 | 3;
+  onAdvanceStoryStage?: () => void;
   boosters: PreLevelBoosterLoadout;
   onToggleBooster: (key: keyof PreLevelBoosterLoadout) => void;
   adsRemovedPermanently: boolean;
@@ -76,6 +83,8 @@ export const WorkshopModal: React.FC<WorkshopModalProps> = ({
   onSelectTheme,
   finialSkinId = 'royal_brass',
   onSelectFinialSkin,
+  storyStage = 1,
+  onAdvanceStoryStage,
   boosters,
   onToggleBooster,
   adsRemovedPermanently,
@@ -232,6 +241,67 @@ export const WorkshopModal: React.FC<WorkshopModalProps> = ({
             </div>
 
             <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
+              {/* Wool Craze-Style Episodic Story Chapter Restoration Card */}
+              {(() => {
+                const chapter = STORY_CHAPTERS[themeId];
+                const currentSpec = chapter.stages[storyStage];
+                const nextSpec = storyStage < 3 ? chapter.stages[(storyStage + 1) as 1 | 2 | 3] : null;
+                const canAffordNext = Boolean(nextSpec && bolts >= nextSpec.costBolts);
+                return (
+                  <div className="bg-[#111723] border border-amber-500/40 rounded-xl p-2.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ArtisanAvatarSvg themeId={themeId} size={32} />
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-amber-300 truncate">
+                            {chapter.actLabel} · {chapter.chapterTitle}
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-300 truncate">
+                            {chapter.artisanName} ({chapter.artisanTitle}) · Stage {storyStage}/3
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-emerald-400 shrink-0">
+                        {storyStage === 3 ? 'MASTERPIECE!' : '+100$ GOAL'}
+                      </span>
+                    </div>
+
+                    <StorySceneIllustrationSvg themeId={themeId} stage={storyStage} />
+
+                    <p className="text-[10px] text-slate-300 leading-snug">
+                      {currentSpec.caption}
+                    </p>
+
+                    {nextSpec ? (
+                      <button
+                        type="button"
+                        disabled={!canAffordNext}
+                        onClick={() => {
+                          if (!canAffordNext) return;
+                          haptics.boxCompleted();
+                          soundManager.playWorkshopUpgrade();
+                          onAdvanceStoryStage?.();
+                        }}
+                        className={`w-full py-1.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-transform ${
+                          canAffordNext
+                            ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 active:scale-95 cursor-pointer'
+                            : 'bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed'
+                        }`}
+                      >
+                        <span>
+                          Restore Stage {storyStage + 1}/3: {nextSpec.title} ({nextSpec.costBolts} Bolts)
+                          {storyStage + 1 === 3 ? ' -> +100 $ Bonus!' : ''}
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="text-[10px] font-mono font-bold text-emerald-300 text-center py-1 bg-emerald-950/40 rounded-lg border border-emerald-500/40">
+                        Masterpiece Restored! (+100 $ Claimed & +15 $ Clear Perk Active)
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {stations.map((station) => {
                 const isMaxed = station.level >= station.maxLevel;
                 const canAfford = bolts >= station.cost;

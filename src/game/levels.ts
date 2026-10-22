@@ -9,6 +9,8 @@ export interface LevelPinDef {
   attachedPlateIds: string[];
   isKeyPin?: boolean;
   lockedByKeyPinId?: string;
+  frostLayers?: number; // Crystal Frost Cap (ICE×2 -> ICE×1 -> 0)
+  chainedWithPinId?: string; // Twin Brass Chain-Link Clasp (CHAIN)
 }
 
 export interface LevelPlateDef {
@@ -49,10 +51,10 @@ export const LEVELS: LevelConfig[] = [
   {
     id: 1,
     name: 'Level 1: Brass & Acrylic',
-    subtitle: 'Dual Layer Foundations',
+    subtitle: 'Frost, Chain & Key Foundations',
     difficulty: 'Novice',
     rewardBolts: 50,
-    description: 'Unscrew top-layer crimson pins to uncover occluded amber pins underneath.',
+    description: 'Pull crimson clasps to crack the ICE×2 frost and unlock the KEY, then double-pull the CHAIN twin clasps.',
     toolboxColors: ['crimson', 'amber'],
     plates: [
       {
@@ -81,12 +83,12 @@ export const LEVELS: LevelConfig[] = [
       },
     ],
     pins: [
-      { id: 'l1-pin-1', x: 125, y: 320, color: 'amber', layerIndex: 0, attachedPlateIds: ['l1-plate-0'] },
+      { id: 'l1-pin-1', x: 125, y: 320, color: 'amber', layerIndex: 0, attachedPlateIds: ['l1-plate-0'], chainedWithPinId: 'l1-pin-3' },
       { id: 'l1-pin-2', x: 200, y: 320, color: 'amber', layerIndex: 0, attachedPlateIds: ['l1-plate-0'], lockedByKeyPinId: 'l1-pin-5' },
-      { id: 'l1-pin-3', x: 275, y: 320, color: 'amber', layerIndex: 0, attachedPlateIds: ['l1-plate-0'] },
+      { id: 'l1-pin-3', x: 275, y: 320, color: 'amber', layerIndex: 0, attachedPlateIds: ['l1-plate-0'], chainedWithPinId: 'l1-pin-1' },
       { id: 'l1-pin-4', x: 135, y: 259, color: 'crimson', layerIndex: 1, attachedPlateIds: ['l1-plate-1'] },
       { id: 'l1-pin-5', x: 200, y: 285, color: 'crimson', layerIndex: 1, attachedPlateIds: ['l1-plate-1'], isKeyPin: true },
-      { id: 'l1-pin-6', x: 265, y: 311, color: 'crimson', layerIndex: 1, attachedPlateIds: ['l1-plate-1'] },
+      { id: 'l1-pin-6', x: 265, y: 311, color: 'crimson', layerIndex: 1, attachedPlateIds: ['l1-plate-1'], frostLayers: 2 },
     ],
   },
   {
@@ -136,14 +138,14 @@ export const LEVELS: LevelConfig[] = [
       },
     ],
     pins: [
-      { id: 'l2-pin-1', x: 125, y: 350, color: 'amber', layerIndex: 0, attachedPlateIds: ['l2-plate-0'] },
+      { id: 'l2-pin-1', x: 125, y: 350, color: 'amber', layerIndex: 0, attachedPlateIds: ['l2-plate-0'], chainedWithPinId: 'l2-pin-3' },
       { id: 'l2-pin-2', x: 200, y: 350, color: 'amber', layerIndex: 0, attachedPlateIds: ['l2-plate-0'] },
-      { id: 'l2-pin-3', x: 275, y: 350, color: 'amber', layerIndex: 0, attachedPlateIds: ['l2-plate-0'] },
+      { id: 'l2-pin-3', x: 275, y: 350, color: 'amber', layerIndex: 0, attachedPlateIds: ['l2-plate-0'], chainedWithPinId: 'l2-pin-1' },
       { id: 'l2-pin-4', x: 155, y: 205, color: 'azure', layerIndex: 1, attachedPlateIds: ['l2-plate-1'] },
       { id: 'l2-pin-5', x: 155, y: 275, color: 'azure', layerIndex: 1, attachedPlateIds: ['l2-plate-1'] },
       { id: 'l2-pin-6', x: 155, y: 345, color: 'azure', layerIndex: 1, attachedPlateIds: ['l2-plate-1'] },
       { id: 'l2-pin-7', x: 140, y: 288, color: 'emerald', layerIndex: 2, attachedPlateIds: ['l2-plate-2'] },
-      { id: 'l2-pin-8', x: 210, y: 265, color: 'emerald', layerIndex: 2, attachedPlateIds: ['l2-plate-2'] },
+      { id: 'l2-pin-8', x: 210, y: 265, color: 'emerald', layerIndex: 2, attachedPlateIds: ['l2-plate-2'], frostLayers: 2 },
       { id: 'l2-pin-9', x: 280, y: 242, color: 'emerald', layerIndex: 2, attachedPlateIds: ['l2-plate-2'] },
     ],
   },
@@ -206,9 +208,9 @@ export const LEVELS: LevelConfig[] = [
       },
     ],
     pins: [
-      { id: 'l3-pin-1', x: 115, y: 375, color: 'violet', layerIndex: 0, attachedPlateIds: ['l3-plate-0'] },
+      { id: 'l3-pin-1', x: 115, y: 375, color: 'violet', layerIndex: 0, attachedPlateIds: ['l3-plate-0'], chainedWithPinId: 'l3-pin-3' },
       { id: 'l3-pin-2', x: 200, y: 375, color: 'violet', layerIndex: 0, attachedPlateIds: ['l3-plate-0'] },
-      { id: 'l3-pin-3', x: 285, y: 375, color: 'violet', layerIndex: 0, attachedPlateIds: ['l3-plate-0'] },
+      { id: 'l3-pin-3', x: 285, y: 375, color: 'violet', layerIndex: 0, attachedPlateIds: ['l3-plate-0'], chainedWithPinId: 'l3-pin-1' },
       { id: 'l3-pin-4', x: 110, y: 275, color: 'amber', layerIndex: 1, attachedPlateIds: ['l3-plate-1'] },
       { id: 'l3-pin-5', x: 165, y: 305, color: 'amber', layerIndex: 1, attachedPlateIds: ['l3-plate-1'] },
       { id: 'l3-pin-6', x: 220, y: 335, color: 'amber', layerIndex: 1, attachedPlateIds: ['l3-plate-1'] },
@@ -216,7 +218,7 @@ export const LEVELS: LevelConfig[] = [
       { id: 'l3-pin-8', x: 235, y: 305, color: 'azure', layerIndex: 2, attachedPlateIds: ['l3-plate-2'] },
       { id: 'l3-pin-9', x: 180, y: 335, color: 'azure', layerIndex: 2, attachedPlateIds: ['l3-plate-2'] },
       { id: 'l3-pin-10', x: 120, y: 230, color: 'crimson', layerIndex: 3, attachedPlateIds: ['l3-plate-3'] },
-      { id: 'l3-pin-11', x: 200, y: 230, color: 'crimson', layerIndex: 3, attachedPlateIds: ['l3-plate-3'] },
+      { id: 'l3-pin-11', x: 200, y: 230, color: 'crimson', layerIndex: 3, attachedPlateIds: ['l3-plate-3'], frostLayers: 2 },
       { id: 'l3-pin-12', x: 280, y: 230, color: 'crimson', layerIndex: 3, attachedPlateIds: ['l3-plate-3'] },
     ],
   },

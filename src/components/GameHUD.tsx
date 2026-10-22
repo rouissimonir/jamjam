@@ -22,7 +22,7 @@ import {
   ArrowLeftRight,
 } from 'lucide-react';
 import { soundManager } from '../game/audio.ts';
-import { GoldCoinPill } from './CasualGameAssets.tsx';
+import { GoldCoinPill, ArtisanAvatarSvg } from './CasualGameAssets.tsx';
 
 interface GameHUDProps {
   queueState: UnpackingQueueState;
@@ -30,6 +30,8 @@ interface GameHUDProps {
   bolts: number;
   winStreak: number;
   comboState?: ComboFeverState;
+  storyStage?: 0 | 1 | 2 | 3;
+  artisanLine?: string;
   themeId: TactileThemeId;
   hapticIntensity: HapticIntensity;
   onCycleHapticIntensity: () => void;
@@ -138,6 +140,8 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   bolts,
   winStreak,
   comboState,
+  storyStage = 1,
+  artisanLine,
   themeId,
   hapticIntensity,
   onCycleHapticIntensity,
@@ -254,11 +258,15 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           </div>
         </div>
 
-        {/* Sub-Row: Box Progress + Combo Fever Indicator + Tactile Quick Controls */}
+        {/* Sub-Row: Box Progress + Story Stage + Combo Fever Indicator + Tactile Quick Controls */}
         <div className="flex items-center justify-between pt-1 border-t border-slate-700/60 text-[10px]">
           <div className="flex items-center gap-1.5 text-slate-300 font-mono min-w-0">
             <span className="font-bold text-amber-300 tabular-nums shrink-0">
               {queueState.completedBoxes}/{queueState.totalBoxes} Crates
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="font-bold text-emerald-300 tabular-nums shrink-0">
+              Story {storyStage}/3
             </span>
             <span aria-hidden="true">·</span>
             {comboState && comboState.streakCount >= 2 ? (
@@ -272,7 +280,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                   : `Combo ${comboState.streakCount}x (+2$)`}
               </span>
             ) : (
-              <span className="truncate max-w-[130px] text-slate-300">
+              <span className="truncate max-w-[92px] text-slate-300">
                 {themeSpec.shortLabel}
               </span>
             )}
@@ -510,56 +518,73 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         <span className="pointer-events-none absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-amber-400/70 border border-black" />
         <span className="pointer-events-none absolute bottom-1 left-1 w-1.5 h-1.5 rounded-full bg-amber-400/70 border border-black" />
 
-        <div className="flex flex-col min-w-0 pl-1">
-          <div className="flex items-center gap-1.5 whitespace-nowrap">
-            <span className="font-game-display text-[11px] font-bold text-white tracking-wide">
-              {maxSlots}-Hole Rail
-            </span>
-            <span className="text-[10px] font-mono font-bold tabular-nums text-amber-300">
-              {queueState.holdingBuffer.length}/{maxSlots}
-            </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.currentTarget.blur();
-                onTriggerMoltenWildcard();
-              }}
-              disabled={!queueState.moltenWildcardReady}
-              aria-label={
-                queueState.moltenWildcardReady
-                  ? 'Trigger Molten Wildcard [W]'
-                  : `Molten Combo ${queueState.directMatchStreak} of 3`
-              }
-              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[9px] font-mono font-bold border transition-all ${
-                queueState.moltenWildcardReady
-                  ? 'bg-orange-500 hover:bg-orange-400 border-black text-slate-950 cursor-pointer shadow-[0_2px_0_#000,0_0_10px_rgba(249,115,22,0.5)] active:translate-y-0.5'
-                  : queueState.directMatchStreak > 0
-                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 cursor-default'
-                  : 'bg-slate-800/90 border-slate-700 text-slate-400 cursor-default'
-              }`}
-              title="Pull 3 matching pins in a row without buffering to charge a Molten Wildcard [W]!"
-            >
-              <Flame className="w-2.5 h-2.5 shrink-0" />
-              <span>
-                {queueState.moltenWildcardReady
-                  ? 'Wild [W]!'
-                  : `Forge ${queueState.directMatchStreak}/3`}
+        <div className="flex items-center gap-2 min-w-0 pl-0.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.currentTarget.blur();
+              onOpenWorkshop();
+            }}
+            title="Tap to open Artisan Story Chapter & Restoration in Atelier"
+            aria-label="Open Artisan Story Chapter"
+            className="shrink-0 cursor-pointer hover:scale-105 transition-transform"
+          >
+            <ArtisanAvatarSvg themeId={themeId} size={30} />
+          </button>
+
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="font-game-display text-[11px] font-bold text-white tracking-wide">
+                {maxSlots}-Hole Rail
               </span>
-            </button>
+              <span className="text-[10px] font-mono font-bold tabular-nums text-amber-300">
+                {queueState.holdingBuffer.length}/{maxSlots}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  onTriggerMoltenWildcard();
+                }}
+                disabled={!queueState.moltenWildcardReady}
+                aria-label={
+                  queueState.moltenWildcardReady
+                    ? 'Trigger Molten Wildcard [W]'
+                    : `Molten Combo ${queueState.directMatchStreak} of 3`
+                }
+                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[9px] font-mono font-bold border transition-all ${
+                  queueState.moltenWildcardReady
+                    ? 'bg-orange-500 hover:bg-orange-400 border-black text-slate-950 cursor-pointer shadow-[0_2px_0_#000,0_0_10px_rgba(249,115,22,0.5)] active:translate-y-0.5'
+                    : queueState.directMatchStreak > 0
+                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 cursor-default'
+                    : 'bg-slate-800/90 border-slate-700 text-slate-400 cursor-default'
+                }`}
+                title="Pull 3 matching pins in a row without buffering to charge a Molten Wildcard [W]!"
+              >
+                <Flame className="w-2.5 h-2.5 shrink-0" />
+                <span>
+                  {queueState.moltenWildcardReady
+                    ? 'Wild [W]!'
+                    : `Forge ${queueState.directMatchStreak}/3`}
+                </span>
+              </button>
+            </div>
+            <span className="text-[10px] text-slate-300 truncate max-w-[185px]">
+              {queueState.moltenWildcardReady ? (
+                <span className="text-orange-300 font-semibold">
+                  Tap Wild [W] to forge 1 pin into Active Crate!
+                </span>
+              ) : queueState.holdingBuffer.length === maxSlots - 1 ? (
+                <span className="text-amber-400 font-semibold">1 slot left before Fail Offer!</span>
+              ) : queueState.holdingBuffer.length >= maxSlots ? (
+                <span className="text-rose-400 font-semibold">Buffer Full — Almost Won!</span>
+              ) : artisanLine ? (
+                <span className="text-amber-200 font-medium">{artisanLine}</span>
+              ) : (
+                `Streak ${winStreak}x · Auto-drains ${themeSpec.pinNoun.toLowerCase()}s`
+              )}
+            </span>
           </div>
-          <span className="text-[10px] text-slate-300 truncate">
-            {queueState.moltenWildcardReady ? (
-              <span className="text-orange-300 font-semibold">
-                Tap Wild [W] to forge 1 pin into Active Crate!
-              </span>
-            ) : queueState.holdingBuffer.length === maxSlots - 1 ? (
-              <span className="text-amber-400 font-semibold">1 slot left before Fail Offer!</span>
-            ) : queueState.holdingBuffer.length >= maxSlots ? (
-              <span className="text-rose-400 font-semibold">Buffer Full — Almost Won!</span>
-            ) : (
-              `Streak ${winStreak}x · Auto-drains ${themeSpec.pinNoun.toLowerCase()}s`
-            )}
-          </span>
         </div>
 
         {/* Dynamic 5 or 7 Neutral Holding Sockets */}

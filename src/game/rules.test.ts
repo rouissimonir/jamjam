@@ -26,6 +26,15 @@ import {
   computeScrewPassChestState,
   FINIAL_SKINS,
   FINIAL_SKIN_ORDER,
+  createInitialFrostMap,
+  evaluatePinFrostTap,
+  decrementFrostForSharedPlatePins,
+  evaluatePinChainLink,
+  createInitialStoryProgress,
+  advanceStoryChapterStep,
+  getStoryClearBonusBolts,
+  getArtisanCompanionLine,
+  STORY_CHAPTERS,
 } from './rules.ts';
 import type { PinColor } from './rules.ts';
 import { LEVELS, CAPGO_OTA_BONUS_LEVELS } from './levels.ts';
@@ -475,5 +484,96 @@ test('Recommended Feature 3 & 4: computeScrewPassChestState and FINIAL_SKINS spe
   assert.ok(FINIAL_SKINS.star_keyhole.extraClearBolts > FINIAL_SKINS.royal_brass.extraClearBolts);
 });
 
+test('Tier-2 Hazard 1: Crystal Frost Caps (ICE) block extraction until shared-plate pins crack and shatter the frost', () => {
+  const pins = [
+    { id: 'p1', attachedPlateIds: ['plate-a'], frostLayers: 2 },
+    { id: 'p2', attachedPlateIds: ['plate-a'] },
+    { id: 'p3', attachedPlateIds: ['plate-a'] },
+    { id: 'p4', attachedPlateIds: ['plate-b'] },
+  ];
+  const removed = new Set<string>();
+  let frostMap = createInitialFrostMap(pins);
 
+  assert.equal(frostMap['p1'], 2);
+  assert.equal(evaluatePinFrostTap('p1', frostMap).allowed, false);
+  assert.equal(evaluatePinFrostTap('p1', frostMap).remainingFrost, 2);
 
+  // Pulling p4 on a different plate does not crack p1
+  removed.add('p4');
+  const step0 = decrementFrostForSharedPlatePins('p4', pins, frostMap, removed);
+  frostMap = step0.nextFrostMap;
+  assert.equal(frostMap['p1'], 2);
+  assert.equal(step0.crackedPinIds.length, 0);
+
+  // Pulling p2 on the same plate cracks p1 from ICE×2 -> ICE×1
+  removed.add('p2');
+  const step1 = decrementFrostForSharedPlatePins('p2', pins, frostMap, removed);
+  frostMap = step1.nextFrostMap;
+  assert.equal(frostMap['p1'], 1);
+  assert.deepEqual(step1.crackedPinIds, ['p1']);
+  assert.equal(step1.shatteredPinIds.length, 0);
+  assert.equal(evaluatePinFrostTap('p1', frostMap).allowed, false);
+
+  // Pulling p3 on the same plate shatters p1 (ICE×1 -> 0) and awards +10 bonus bolts
+  removed.add('p3');
+  const step2 = decrementFrostForSharedPlatePins('p3', pins, frostMap, removed);
+  frostMap = step2.nextFrostMap;
+  assert.equal(frostMap['p1'], 0);
+  assert.deepEqual(step2.shatteredPinIds, ['p1']);
+  assert.equal(step2.bonusBolts, 10);
+  assert.equal(evaluatePinFrostTap('p1', frostMap).allowed, true);
+});
+
+test('Tier-2 Hazard 2: Twin Brass Chain-Link Clasps (CHAIN) require both twins clear and award +15 double-pull bonus', () => {
+  const pins: { id: string; color: PinColor; chainedWithPinId?: string }[] = [
+    { id: 'c1', color: 'amber', chainedWithPinId: 'c2' },
+    { id: 'c2', color: 'amber', chainedWithPinId: 'c1' },
+  ];
+  const removed = new Set<string>();
+  const occluded = new Set<string>(['c2']);
+
+  // Blocked while partner c2 is occluded
+  const blockedEval = evaluatePinChainLink('c1', pins, removed, occluded, {});
+  assert.equal(blockedEval.allowed, false);
+  assert.equal(blockedEval.isChained, true);
+  assert.equal(blockedEval.partnerPinId, 'c2');
+  assert.equal(blockedEval.blockedReason, 'partner_occluded');
+
+  // Once c2 is un-occluded, pulling c1 is allowed and auto-pulls c2 with +15 bonus
+  occluded.delete('c2');
+  const clearEval = evaluatePinChainLink('c1', pins, removed, occluded, {});
+  assert.equal(clearEval.allowed, true);
+  assert.equal(clearEval.isChained, true);
+  assert.equal(clearEval.partnerPinId, 'c2');
+  assert.equal(clearEval.chainBonusBolts, 15);
+});
+
+test('Wool Craze Tactile Storytelling: advanceStoryChapterStep advances stages 1 -> 2 -> 3 and awards +100 Masterpiece Bonus', () => {
+  let progress = createInitialStoryProgress();
+  assert.equal(progress.stageByTheme.stained_glass, 1);
+  assert.equal(getStoryClearBonusBolts(progress, 'stained_glass'), 5);
+
+  // Advance from Stage 1 -> Stage 2 (cost 45 bolts)
+  const step2 = advanceStoryChapterStep(progress, 'stained_glass', 130);
+  assert.equal(step2.advanced, true);
+  assert.equal(step2.newStage, 2);
+  assert.equal(step2.nextBolts, 85);
+  assert.equal(step2.masterpieceJustCompleted, false);
+  progress = step2.updatedProgress;
+  assert.equal(getStoryClearBonusBolts(progress, 'stained_glass'), 10);
+
+  // Advance from Stage 2 -> Stage 3 Masterpiece (cost 50 bolts, awards +100 Masterpiece Treasury Bonus!)
+  const step3 = advanceStoryChapterStep(progress, 'stained_glass', step2.nextBolts);
+  assert.equal(step3.advanced, true);
+  assert.equal(step3.newStage, 3);
+  assert.equal(step3.masterpieceJustCompleted, true);
+  assert.equal(step3.bonusBoltsAwarded, 100);
+  assert.equal(step3.nextBolts, 85 - 50 + 100); // 135
+  progress = step3.updatedProgress;
+  assert.equal(getStoryClearBonusBolts(progress, 'stained_glass'), 15);
+
+  // Verify Artisan Companion lines include the artisan name for each theme
+  assert.ok(getArtisanCompanionLine('stained_glass', 'ice_shattered').includes(STORY_CHAPTERS.stained_glass.artisanName));
+  assert.ok(getArtisanCompanionLine('knit_yarn', 'chain_pulled').includes(STORY_CHAPTERS.knit_yarn.artisanName));
+  assert.ok(getArtisanCompanionLine('retro_gadget', 'key_unlocked').includes(STORY_CHAPTERS.retro_gadget.artisanName));
+});
