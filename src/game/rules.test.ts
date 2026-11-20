@@ -35,8 +35,27 @@ import {
   getStoryClearBonusBolts,
   getArtisanCompanionLine,
   STORY_CHAPTERS,
+  IDLE_HINT_DELAY_MS,
+  evaluateIdleMovableHints,
+  getHeirloomForLevel,
+  computeLiveHeirloomUnboxingState,
+  HEIRLOOM_ORDER,
+  computeAtelierActivePerks,
+  undoBufferedPinFromQueue,
+  formatLocalDateKey,
+  computeDailyCourierStreak,
+  generateDailyDispatchLevel,
+  computeParcelStarRating,
+  computeArchivistRank,
+  evaluateRoyalCommissions,
+  formatShareableDispatchCard,
 } from './rules.ts';
 import type { PinColor } from './rules.ts';
+import {
+  serializeArchivistState,
+  deserializeArchivistState,
+  SAVE_SCHEMA_VERSION,
+} from './storage.ts';
 import { LEVELS, CAPGO_OTA_BONUS_LEVELS } from './levels.ts';
 
 test('Rule 2: Per-Layer Collision Filtering assigns distinct categories and isolated self-masks', () => {
@@ -577,3 +596,340 @@ test('Wool Craze Tactile Storytelling: advanceStoryChapterStep advances stages 1
   assert.ok(getArtisanCompanionLine('knit_yarn', 'chain_pulled').includes(STORY_CHAPTERS.knit_yarn.artisanName));
   assert.ok(getArtisanCompanionLine('retro_gadget', 'key_unlocked').includes(STORY_CHAPTERS.retro_gadget.artisanName));
 });
+
+test('5-Second Idle Visual Hint System: evaluateIdleMovableHints highlights unoccluded movable pins after 5000ms idle', () => {
+  const candidates = [
+    { id: 'pin-free-amber', color: 'amber' as PinColor, layerIndex: 1, occluded: false },
+    { id: 'pin-match-crimson', color: 'crimson' as PinColor, layerIndex: 2, occluded: false },
+    { id: 'pin-occluded', color: 'crimson' as PinColor, layerIndex: 0, occluded: true },
+    { id: 'pin-padlocked', color: 'crimson' as PinColor, layerIndex: 2, occluded: false, lockedByKeyPinId: 'pin-key' },
+    { id: 'pin-key', color: 'azure' as PinColor, layerIndex: 1, occluded: true, isKeyPin: true },
+    { id: 'pin-frosted', color: 'crimson' as PinColor, layerIndex: 2, occluded: false },
+    { id: 'pin-chained-a', color: 'emerald' as PinColor, layerIndex: 2, occluded: false, chainedWithPinId: 'pin-chained-b' },
+    { id: 'pin-chained-b', color: 'emerald' as PinColor, layerIndex: 0, occluded: true, chainedWithPinId: 'pin-chained-a' },
+  ];
+
+  const removed = new Set<string>();
+  const frostMap = { 'pin-frosted': 2 };
+
+  // 1. Before 5000ms (at 4900ms), idleHintActive is false, though movablePinIds are accurately computed
+  const before5s = evaluateIdleMovableHints(
+    candidates,
+    removed,
+    frostMap,
+    4900,
+    ['crimson'],
+    IDLE_HINT_DELAY_MS
+  );
+  assert.equal(before5s.idleHintActive, false);
+  assert.deepEqual(before5s.movablePinIds, ['pin-match-crimson', 'pin-free-amber']);
+  assert.deepEqual(before5s.preferredMatchPinIds, ['pin-match-crimson']);
+  assert.equal(before5s.recommendedPinId, 'pin-match-crimson');
+
+  // 2. At 5000ms (5 seconds idle), idleHintActive transitions to true and excludes occluded/padlocked/frosted/chain-blocked pins
+  const at5s = evaluateIdleMovableHints(
+    candidates,
+    removed,
+    frostMap,
+    5000,
+    ['crimson'],
+    IDLE_HINT_DELAY_MS
+  );
+  assert.equal(at5s.idleHintActive, true);
+  assert.deepEqual(at5s.movablePinIds, ['pin-match-crimson', 'pin-free-amber']);
+  assert.equal(at5s.recommendedPinId, 'pin-match-crimson');
+
+  // 3. Once pin-chained-b is un-occluded, both chained pins become movable
+  candidates[7].occluded = false;
+  const afterUnoccludeChain = evaluateIdleMovableHints(
+    candidates,
+    removed,
+    frostMap,
+    5200,
+    ['crimson'],
+    IDLE_HINT_DELAY_MS
+  );
+  assert.equal(afterUnoccludeChain.idleHintActive, true);
+  assert.ok(afterUnoccludeChain.movablePinIds.includes('pin-chained-a'));
+  assert.ok(afterUnoccludeChain.movablePinIds.includes('pin-chained-b'));
+});
+
+test('Royal Post Live Centerpiece Unboxing Engine: advances progress and 4 stages on every ribbon match', () => {
+  // Parcel 1 maps to Imperial Songbird Egg; cycles cleanly across all 4 royal heirlooms
+  assert.equal(getHeirloomForLevel(1).id, HEIRLOOM_ORDER[0]);
+  assert.equal(getHeirloomForLevel(2).id, HEIRLOOM_ORDER[1]);
+  assert.equal(getHeirloomForLevel(5).id, HEIRLOOM_ORDER[0]);
+
+  // 2-bobbin parcel = 6 total ribbons
+  const s0 = computeLiveHeirloomUnboxingState(0, 0, 0, 2, 1);
+  assert.equal(s0.progressPercent, 0);
+  assert.equal(s0.unboxingStage, 0);
+  assert.equal(s0.lidOpenRatio, 0);
+
+  // First single ribbon match immediately advances progress (1/6 = 17%) into Stage 1 (Wax Seal Cracked)
+  const s1 = computeLiveHeirloomUnboxingState(0, 1, 0, 2, 1);
+  assert.equal(s1.woundRibbons, 1);
+  assert.equal(s1.progressPercent, 17);
+  assert.equal(s1.unboxingStage, 1);
+
+  // First full bobbin + 1 ribbon into second bobbin (4/6 = 67%) hinges Velvet Lid Ajar (Stage 2)
+  const s2 = computeLiveHeirloomUnboxingState(1, 1, 0, 2, 1);
+  assert.equal(s2.progressPercent, 67);
+  assert.equal(s2.unboxingStage, 2);
+  assert.ok(s2.lidOpenRatio > 0.5);
+
+  // Final bobbin completed (6/6 = 100%) awakens the animated heirloom masterpiece (Stage 3)
+  const s3 = computeLiveHeirloomUnboxingState(2, 0, 0, 2, 1);
+  assert.equal(s3.progressPercent, 100);
+  assert.equal(s3.unboxingStage, 3);
+  assert.equal(s3.lidOpenRatio, 1);
+  assert.equal(s3.ribbonPeelRatio, 1);
+});
+
+test('v2 Active Atelier Perks: scales Crown multiplier, Wax/Combo bonus, Rack Clear discount, and Hint delay cleanly', () => {
+  const base = computeAtelierActivePerks({
+    workbench: 1,
+    drill: 1,
+    anodizing: 1,
+    magnet: 1,
+    blueprint: 1,
+  });
+  assert.equal(base.crownRewardMultiplier, 1);
+  assert.equal(base.waxAndComboBonusCrowns, 0);
+  assert.equal(base.rackClearCost, 30);
+  assert.equal(base.idleHintDelayMs, IDLE_HINT_DELAY_MS);
+
+  const upgraded = computeAtelierActivePerks({
+    workbench: 5,
+    drill: 4,
+    anodizing: 3,
+    magnet: 4,
+    blueprint: 5,
+  });
+  assert.ok(upgraded.crownRewardMultiplier > 1.3);
+  assert.ok(upgraded.waxAndComboBonusCrowns >= 5);
+  assert.ok(upgraded.rackClearCost < 30 && upgraded.rackClearCost >= 15);
+  assert.ok(upgraded.idleHintDelayMs < IDLE_HINT_DELAY_MS && upgraded.idleHintDelayMs >= 2600);
+});
+
+test('v2 Wax Re-Stamp Undo: pops last or targeted rack pin and clears almost_won_fail cleanly', () => {
+  let state = createInitialQueueState(['crimson', 'emerald']);
+  state = routeTappedPin(state, 'p1', 'amber');
+  state = routeTappedPin(state, 'p2', 'azure');
+  state = routeTappedPin(state, 'p3', 'violet');
+  state = routeTappedPin(state, 'p4', 'amber');
+  state = routeTappedPin(state, 'p5', 'azure');
+  assert.equal(state.status, 'almost_won_fail');
+  assert.equal(state.holdingBuffer.length, 5);
+
+  // Undo last buffered pin restores playing state and returns pin p5
+  const undoLast = undoBufferedPinFromQueue(state);
+  assert.equal(undoLast.undone, true);
+  assert.equal(undoLast.restoredPinId, 'p5');
+  assert.equal(undoLast.nextQueueState.status, 'playing');
+  assert.equal(undoLast.nextQueueState.holdingBuffer.length, 4);
+
+  // Undo specific targeted pin p2
+  const undoTarget = undoBufferedPinFromQueue(undoLast.nextQueueState, 'p2');
+  assert.equal(undoTarget.undone, true);
+  assert.equal(undoTarget.restoredPinId, 'p2');
+  assert.equal(undoTarget.nextQueueState.holdingBuffer.length, 3);
+  assert.equal(
+    undoTarget.nextQueueState.holdingBuffer.some((p) => p.id === 'p2'),
+    false
+  );
+});
+
+test('v2 Daily Royal Dispatch Generator: deterministic & exact 3-pin parity across 30 consecutive dates', () => {
+  const baseDate = new Date(2026, 4, 1); // May 1, 2026
+  for (let offset = 0; offset < 30; offset++) {
+    const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + offset);
+    const dateKey = formatLocalDateKey(d);
+    const dailyA = generateDailyDispatchLevel(dateKey);
+    const dailyB = generateDailyDispatchLevel(dateKey);
+
+    // Deterministic for same date
+    assert.deepEqual(dailyA, dailyB);
+    assert.equal(dailyA.isDaily, true);
+    assert.equal(dailyA.dailyDateKey, dateKey);
+    assert.equal(dailyA.pins.length, dailyA.toolboxColors.length * 3);
+
+    // Exact 3-pin color parity matching bobbin queue
+    const colorCounts = new Map<string, number>();
+    for (const pin of dailyA.pins) {
+      colorCounts.set(pin.color, (colorCounts.get(pin.color) || 0) + 1);
+      assert.ok(pin.layerIndex >= 0 && pin.layerIndex <= 3);
+      assert.ok(pin.attachedPlateIds.length >= 1);
+      for (const pid of pin.attachedPlateIds) {
+        const plate = dailyA.plates.find((pl) => pl.id === pid);
+        assert.ok(plate, `Daily ${dateKey} pin ${pin.id} references missing plate ${pid}`);
+        assert.ok(plate.pinIds.includes(pin.id));
+      }
+    }
+    const expectedCounts = new Map<string, number>();
+    for (const color of dailyA.toolboxColors) {
+      expectedCounts.set(color, (expectedCounts.get(color) || 0) + 3);
+    }
+    assert.deepEqual(colorCounts, expectedCounts);
+  }
+});
+
+test('v2 Daily Courier Streak: counts consecutive days including yesterday-alive and stops at gaps', () => {
+  assert.equal(computeDailyCourierStreak([], '2026-05-10'), 0);
+  assert.equal(computeDailyCourierStreak(['2026-05-10'], '2026-05-10'), 1);
+  assert.equal(
+    computeDailyCourierStreak(['2026-05-08', '2026-05-09', '2026-05-10'], '2026-05-10'),
+    3
+  );
+  // Streak stays alive if completed yesterday even before finishing today
+  assert.equal(
+    computeDailyCourierStreak(['2026-05-08', '2026-05-09'], '2026-05-10'),
+    2
+  );
+  // Gap breaks streak
+  assert.equal(
+    computeDailyCourierStreak(['2026-05-06', '2026-05-07'], '2026-05-10'),
+    0
+  );
+});
+
+test('v2 Local Archivist Save Serialization: round-trips cleanly and rejects corrupted payloads', () => {
+  const payload = {
+    version: SAVE_SCHEMA_VERSION,
+    bolts: 420,
+    clearedLevelIds: [1, 2, 3],
+    winStreak: 5,
+    themeId: 'knit_yarn' as const,
+    finialSkinId: 'star_keyhole' as const,
+    hapticIntensity: 'heavy' as const,
+    adsRemovedPermanently: true,
+    preLevelBoosters: { extraBufferHoles: true, dualToolbox: false },
+    stations: [{ id: 'workbench', level: 4, cost: 85 }],
+    storyProgress: createInitialStoryProgress(),
+    totalScrewsCollected: 92,
+    screwChestsClaimed: 2,
+    dailyCompletedDates: ['2026-05-09', '2026-05-10'],
+    muted: true,
+    levelStarsById: { 1: 3 as const, 2: 2 as const },
+    commissionStats: {
+      ribbonsUnsealed: 24,
+      waxSealsBroken: 3,
+      threeStarParcels: 1,
+      silkRushTriggers: 2,
+    },
+    claimedCommissionIds: ['ribbon_weaver'],
+  };
+
+  const json = serializeArchivistState(payload);
+  const restored = deserializeArchivistState(json);
+  assert.ok(restored);
+  assert.equal(restored.bolts, 420);
+  assert.deepEqual(restored.clearedLevelIds, [1, 2, 3]);
+  assert.equal(restored.themeId, 'knit_yarn');
+  assert.equal(restored.finialSkinId, 'star_keyhole');
+  assert.deepEqual(restored.dailyCompletedDates, ['2026-05-09', '2026-05-10']);
+  assert.equal(restored.muted, true);
+  assert.deepEqual(restored.levelStarsById, { 1: 3, 2: 2 });
+  assert.equal(restored.commissionStats?.ribbonsUnsealed, 24);
+  assert.deepEqual(restored.claimedCommissionIds, ['ribbon_weaver']);
+
+  // Corrupted JSON or invalid enum values are safely handled
+  assert.equal(deserializeArchivistState('{not valid json'), null);
+  const partial = deserializeArchivistState(
+    JSON.stringify({ bolts: -50, themeId: 'invalid_theme', dailyCompletedDates: ['bad', '2026-05-10'] })
+  );
+  assert.ok(partial);
+  assert.equal(partial.bolts, undefined);
+  assert.equal(partial.themeId, undefined);
+  assert.deepEqual(partial.dailyCompletedDates, ['2026-05-10']);
+});
+
+test('v3 Top-10 3-Star Wax Mastery Rating: rewards rack discipline and zero-revive clears deterministically', () => {
+  const threeStar = computeParcelStarRating(2, 0, 5);
+  assert.equal(threeStar.stars, 3);
+  assert.equal(threeStar.headline, 'Royal Grand Seal');
+  assert.equal(threeStar.starBonusCrowns, 30);
+
+  const twoStarTightRack = computeParcelStarRating(4, 0, 5);
+  assert.equal(twoStarTightRack.stars, 2);
+  assert.equal(twoStarTightRack.starBonusCrowns, 15);
+
+  const twoStarSingleRevive = computeParcelStarRating(5, 1, 5);
+  assert.equal(twoStarSingleRevive.stars, 2);
+
+  const oneStarMultiRevive = computeParcelStarRating(5, 2, 5);
+  assert.equal(oneStarMultiRevive.stars, 1);
+  assert.equal(oneStarMultiRevive.starBonusCrowns, 0);
+});
+
+test('v3 Top-10 Royal Archivist Rank Progression: scales cleanly from Novice Sorter to Grand Royal Archivist', () => {
+  const novice = computeArchivistRank(0, 0, 0);
+  assert.equal(novice.currentRank.tier, 1);
+  assert.equal(novice.currentRank.title, 'Novice Sorter');
+  assert.ok(novice.nextRank !== null);
+  assert.equal(novice.pointsToNext, 40);
+
+  const master = computeArchivistRank(10, 45, 1); // 180 + 45 + 35 = 260
+  assert.equal(master.currentRank.tier, 4);
+  assert.equal(master.currentRank.title, 'Master Signet');
+  assert.ok(master.progressPercent >= 4 && master.progressPercent <= 100);
+
+  const grand = computeArchivistRank(25, 100, 3); // 450 + 100 + 105 = 655
+  assert.equal(grand.currentRank.tier, 6);
+  assert.equal(grand.currentRank.title, 'Grand Royal Archivist');
+  assert.equal(grand.nextRank, null);
+  assert.equal(grand.progressPercent, 100);
+  assert.equal(grand.pointsToNext, 0);
+});
+
+test('v3 Top-10 Royal Courier Commissions: computes completion, claimability, and claimed state', () => {
+  const evaluated = evaluateRoyalCommissions(
+    {
+      ribbonsUnsealed: 22,
+      waxSealsBroken: 1,
+      threeStarParcels: 1,
+      silkRushTriggers: 0,
+    },
+    ['ribbon_weaver']
+  );
+
+  const weaver = evaluated.find((c) => c.id === 'ribbon_weaver');
+  assert.ok(weaver);
+  assert.equal(weaver.completed, true);
+  assert.equal(weaver.claimed, true);
+  assert.equal(weaver.claimable, false);
+
+  const envoy = evaluated.find((c) => c.id === 'three_star_courier');
+  assert.ok(envoy);
+  assert.equal(envoy.completed, true);
+  assert.equal(envoy.claimed, false);
+  assert.equal(envoy.claimable, true);
+
+  const wax = evaluated.find((c) => c.id === 'wax_breaker');
+  assert.ok(wax);
+  assert.equal(wax.completed, false);
+  assert.equal(wax.claimable, false);
+  assert.equal(wax.current, 1);
+});
+
+test('v3 Top-10 Shareable Dispatch Stamp Card: produces crisp spoiler-free summary with stars and streak', () => {
+  const card = formatShareableDispatchCard({
+    parcelTitle: 'Parcel 5 · Sovereign Keepsake',
+    heirloomName: 'Imperial Songbird Egg',
+    stars: 3,
+    isDaily: true,
+    dailyDateKey: '2026-05-12',
+    dailyStreak: 4,
+    rankTitle: 'Master Signet',
+    peakRackUsed: 2,
+    maxRackSlots: 5,
+  });
+
+  assert.ok(card.includes('Royal Post · Daily Dispatch (2026-05-12)'));
+  assert.ok(card.includes('★★★  Imperial Songbird Egg Unboxed'));
+  assert.ok(card.includes('Rack Discipline: 2/5 pegs · Master Signet · 4d Streak'));
+});
+
+
+
+

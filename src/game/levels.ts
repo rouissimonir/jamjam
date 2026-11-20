@@ -38,6 +38,8 @@ export interface LevelConfig {
   parMoves?: number;
   rewardBolts: number;
   isOtaBonus?: boolean;
+  isDaily?: boolean;
+  dailyDateKey?: string;
 }
 
 /**
@@ -50,11 +52,11 @@ export interface LevelConfig {
 export const LEVELS: LevelConfig[] = [
   {
     id: 1,
-    name: 'Level 1: Brass & Acrylic',
-    subtitle: 'Frost, Chain & Key Foundations',
+    name: 'Parcel 1: Duchess’s Wax Dispatch',
+    subtitle: 'Wax Seal, Signet & Bow Foundations',
     difficulty: 'Novice',
     rewardBolts: 50,
-    description: 'Pull crimson clasps to crack the ICE×2 frost and unlock the KEY, then double-pull the CHAIN twin clasps.',
+    description: 'Unwind crimson ribbons to fracture the WAX×2 seal and release the SIGNET, then untie the twin BOW pair.',
     toolboxColors: ['crimson', 'amber'],
     plates: [
       {
@@ -93,11 +95,11 @@ export const LEVELS: LevelConfig[] = [
   },
   {
     id: 2,
-    name: 'Level 2: The Pendulum Gate',
-    subtitle: 'Single-Pin Swing Physics',
+    name: 'Parcel 2: Hanging Velvet Tag',
+    subtitle: 'Single-Clasp Pendulum Swings',
     difficulty: 'Novice',
     rewardBolts: 65,
-    description: 'Leave 1 pin on a plate to unlock its rotational inertia and let gravity swing it clear.',
+    description: 'Leave 1 clasp on a satin strap so gravity swings the parchment tag aside to uncover lower seals.',
     toolboxColors: ['emerald', 'azure', 'amber'],
     plates: [
       {
@@ -151,11 +153,11 @@ export const LEVELS: LevelConfig[] = [
   },
   {
     id: 3,
-    name: 'Level 3: Quad-Layer Stack',
-    subtitle: '4-Layer Collision Isolation',
+    name: 'Parcel 3: Four-Fold Silk Weave',
+    subtitle: '4-Layer Over-Under Ribbon Order',
     difficulty: 'Apprentice',
     rewardBolts: 85,
-    description: 'Plates on Layer 2 collide with Layer 2 bodies while passing cleanly over Layers 0 and 1.',
+    description: 'Four satin ribbons overlap across layers 0–3. Unwind top silk folds cleanly to unseal the keepsake.',
     toolboxColors: ['crimson', 'azure', 'amber', 'violet'],
     plates: [
       {
@@ -224,11 +226,11 @@ export const LEVELS: LevelConfig[] = [
   },
   {
     id: 4,
-    name: 'Level 4: Buffer Discipline',
-    subtitle: 'Mixed-Color Plate Pinning',
+    name: 'Parcel 4: Brass Rack Discipline',
+    subtitle: 'Mixed-Color Ribbon Clasps',
     difficulty: 'Apprentice',
     rewardBolts: 100,
-    description: 'Plates carry mixed-color pins. Park off-color pins in the 5-hole buffer without overflowing.',
+    description: 'Ribbons carry mixed-color clasps. Park off-color ribbons on the 5-peg brass rack without overflowing.',
     toolboxColors: ['amber', 'emerald', 'crimson'],
     plates: [
       {
@@ -282,11 +284,11 @@ export const LEVELS: LevelConfig[] = [
   },
   {
     id: 5,
-    name: 'Level 5: Same-Layer Collider',
-    subtitle: 'Layer 2 Dual Drop',
+    name: 'Parcel 5: Venetian Double Fold',
+    subtitle: 'Shared-Layer Ribbon Drop',
     difficulty: 'Artisan',
     rewardBolts: 115,
-    description: 'Two plates share Layer 2. Free the lower Layer 2 support beam first so the upper beam can drop.',
+    description: 'Two silk straps share Layer 2. Free the lower Layer 2 sash first so the upper ribbon slips away.',
     toolboxColors: ['azure', 'violet', 'amber', 'emerald'],
     plates: [
       {
@@ -355,11 +357,11 @@ export const LEVELS: LevelConfig[] = [
   },
   {
     id: 6,
-    name: 'Level 6: Twin Escapement',
-    subtitle: 'Synchronized Pendulum Arms',
+    name: 'Parcel 6: Twin Tassel Flaps',
+    subtitle: 'Synchronized Swing Straps',
     difficulty: 'Artisan',
     rewardBolts: 130,
-    description: 'Swing both Layer 2 escapement arms outward to expose the central Layer 1 locking pins.',
+    description: 'Swing both upper velvet straps outward to expose the central wax-sealed clasps underneath.',
     toolboxColors: ['crimson', 'emerald', 'azure', 'amber'],
     plates: [
       {
@@ -440,11 +442,11 @@ export const LEVELS: LevelConfig[] = [
   },
   {
     id: 7,
-    name: 'Level 7: Lattice Truss',
-    subtitle: 'Cross-woven 4-Layer Matrix',
+    name: 'Parcel 7: Kyoto Obi Lattice',
+    subtitle: 'Cross-Woven 4-Layer Brocade',
     difficulty: 'Artisan',
     rewardBolts: 150,
-    description: 'Four diagonal trusses weave across all 4 depth layers. Watch the 25% pin occlusion threshold.',
+    description: 'Four diagonal brocade sashes interlace across all four layers. Watch for overlapped wax clasps.',
     toolboxColors: ['violet', 'azure', 'emerald', 'crimson'],
     plates: [
       {
@@ -513,11 +515,11 @@ export const LEVELS: LevelConfig[] = [
   },
   {
     id: 8,
-    name: 'Level 8: Chronometer Cage',
-    subtitle: '5-Color Precision Packing',
+    name: 'Parcel 8: Envoy’s Five-Ribbon Chest',
+    subtitle: '5-Weave Precision Winding',
     difficulty: 'Master',
     rewardBolts: 175,
-    description: 'All five anodized pin colors appear across 5 interlocking plates. Plan every buffer slot.',
+    description: 'All five royal silk weaves interlock across 5 straps. Plan every peg on your 5-peg brass rack.',
     toolboxColors: ['amber', 'crimson', 'azure', 'emerald', 'violet'],
     plates: [
       {
@@ -601,11 +603,11 @@ export const LEVELS: LevelConfig[] = [
   },
   {
     id: 9,
-    name: 'Level 9: Apprentice Final',
-    subtitle: 'Asymmetric Cantilever Rig',
+    name: 'Parcel 9: Royal Courier Satchel',
+    subtitle: 'Asymmetric Wax & Ribbon Fold',
     difficulty: 'Master',
     rewardBolts: 200,
-    description: 'Cantilevered plates swing violently once reduced to 1 pin. Time your extractions carefully.',
+    description: 'Long satin straps swing dramatically once reduced to 1 clasp. Use Gentle Shake [G] to reveal hidden wax.',
     toolboxColors: ['emerald', 'violet', 'crimson', 'azure', 'amber'],
     plates: [
       {
@@ -689,11 +691,11 @@ export const LEVELS: LevelConfig[] = [
   },
   {
     id: 10,
-    name: 'Level 10: Master Blueprint',
-    subtitle: 'Grand Atelier Renovation Assembly',
+    name: 'Parcel 10: Sovereign Jubilee Box',
+    subtitle: 'Grand Archivist Master Parcel',
     difficulty: 'Master',
     rewardBolts: 250,
-    description: 'The flagship 6-plate, 15-pin architectural assembly across all 4 depth layers.',
+    description: 'The flagship 6-strap, 15-clasp royal dispatch wrapped across all 4 satin weave layers.',
     toolboxColors: ['azure', 'emerald', 'violet', 'crimson', 'amber'],
     plates: [
       {
@@ -792,12 +794,12 @@ export const LEVELS: LevelConfig[] = [
 export const CAPGO_OTA_BONUS_LEVELS: LevelConfig[] = [
   {
     id: 11,
-    name: 'Level 11: Capgo OTA Vault',
+    name: 'Parcel 11: Imperial Vault Dispatch',
     subtitle: 'Live Bundle v1.3.4 Expansion',
     difficulty: 'Master',
     rewardBolts: 300,
     isOtaBonus: true,
-    description: 'Delivered via Capgo Live OTA Update: triple-layer gyroscopic ring lock.',
+    description: 'Delivered via Capgo Live Update: triple-layer imperial wax seal & brocade vault lock.',
     toolboxColors: ['crimson', 'amber', 'emerald', 'azure'],
     plates: [
       {

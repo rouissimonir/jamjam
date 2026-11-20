@@ -26,90 +26,95 @@ export const GoldDollarCoinSvg: React.FC<GoldDollarCoinSvgProps> = ({
     >
       <defs>
         <linearGradient id="coinFaceGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#FFF455" />
-          <stop offset="55%" stopColor="#FFB800" />
-          <stop offset="100%" stopColor="#EB7100" />
+          <stop offset="0%" stopColor="#FEF08A" />
+          <stop offset="48%" stopColor="#F59E0B" />
+          <stop offset="100%" stopColor="#B45309" />
         </linearGradient>
         <linearGradient id="coinRimGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#FF9E00" />
-          <stop offset="100%" stopColor="#B04300" />
+          <stop offset="0%" stopColor="#D97706" />
+          <stop offset="100%" stopColor="#78350F" />
         </linearGradient>
       </defs>
 
-      {/* 3D Extruded Coin Shadow & Rim */}
+      {/* Antique Burnished Gold Medallion Shadow & Rim */}
       <ellipse
         cx="20"
-        cy="21.5"
-        rx="16.2"
-        ry="15.5"
+        cy="21.2"
+        rx="15.8"
+        ry="15.2"
         fill="url(#coinRimGrad)"
-        stroke="#141824"
-        strokeWidth="3"
+        stroke="#22120B"
+        strokeWidth="2.4"
       />
 
-      {/* Main Coin Golden Face */}
+      {/* Main Burnished Gold Coin Face */}
       <ellipse
         cx="19.5"
-        cy="18.5"
-        rx="15.5"
-        ry="14.8"
+        cy="18.6"
+        rx="15.2"
+        ry="14.6"
         fill="url(#coinFaceGrad)"
-        stroke="#141824"
-        strokeWidth="2.8"
+        stroke="#22120B"
+        strokeWidth="2.2"
       />
 
-      {/* Inner Recessed Gold Ring with 4 Clockwork Notches */}
+      {/* Inner Engraved Filigree Ring */}
       <ellipse
         cx="19.5"
-        cy="18.5"
+        cy="18.6"
         rx="11.2"
-        ry="10.6"
-        fill="#F08300"
-        stroke="#FFEC75"
-        strokeWidth="1.6"
+        ry="10.7"
+        fill="#B45309"
+        fillOpacity="0.48"
+        stroke="#FEF08A"
+        strokeOpacity="0.85"
+        strokeWidth="1.2"
       />
 
-      {/* Top-Left Specular Shine */}
+      {/* Top-Left Specular Sheen */}
       <path
-        d="M 10 12 A 12 11 0 0 1 25 8.5"
+        d="M 10.5 12.2 A 11.8 11 0 0 1 25 8.8"
         fill="none"
-        stroke="#FFFFFF"
-        strokeWidth="2.3"
+        stroke="#FFFBEB"
+        strokeWidth="1.9"
         strokeLinecap="round"
-        strokeOpacity="0.88"
+        strokeOpacity="0.82"
       />
 
-      {/* Embossed Dollar '$' Symbol */}
-      <text
-        x="19.5"
-        y="23.5"
-        textAnchor="middle"
-        fill="#FFF58C"
-        stroke="#A83E00"
-        strokeWidth="1.3"
-        paintOrder="stroke fill"
-        fontFamily="Fredoka, Outfit, sans-serif"
-        fontWeight="700"
-        fontSize="16"
-      >
-        $
-      </text>
+      {/* Embossed Royal Crown Emblem */}
+      <path
+        d="M 13.5 22.8 L 12.6 15.8 L 16.5 18.8 L 19.5 14 L 22.5 18.8 L 26.4 15.8 L 25.5 22.8 Z"
+        fill="#FEF9C3"
+        stroke="#78350F"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <rect x="13.5" y="23.2" width="12" height="1.8" rx="0.8" fill="#FDE047" stroke="#78350F" strokeWidth="0.8" />
 
-      {/* Optional Overlapping Lime-Green '+' Badge (Bottom-Right of Coin) */}
+      {/* Optional Warm Crimson & Gold '+' Wax Charm Badge */}
       {showPlusBadge && (
-        <g transform="translate(21, 21)">
-          <path
-            d="M 6 1.5 H 11.5 V 6 H 16 V 11.5 H 11.5 V 16 H 6 V 11.5 H 1.5 V 6 H 6 Z"
-            fill="#5CE619"
-            stroke="#141824"
-            strokeWidth="2.6"
-            strokeLinejoin="round"
+        <g transform="translate(22, 22)">
+          <circle
+            cx="8"
+            cy="8"
+            r="7.4"
+            fill="#9F1239"
+            stroke="#22120B"
+            strokeWidth="2"
+          />
+          <circle
+            cx="8"
+            cy="8"
+            r="5.6"
+            fill="none"
+            stroke="#FDE68A"
+            strokeWidth="0.9"
+            strokeOpacity="0.7"
           />
           <path
-            d="M 6.8 2.8 H 10.7 V 6.8 H 14.7 V 9.2 H 10.7 V 6.8"
-            fill="none"
-            stroke="#C4FF9E"
-            strokeWidth="1.2"
+            d="M 8 4.6 V 11.4 M 4.6 8 H 11.4"
+            stroke="#FEF9C3"
+            strokeWidth="2.1"
             strokeLinecap="round"
           />
         </g>
@@ -142,23 +147,23 @@ export const GoldCoinPill: React.FC<GoldCoinPillProps> = ({
       className={`group relative inline-flex items-center select-none transition-transform active:scale-95 ${
         pulse ? 'scale-110' : ''
       }`}
-      title="Coin Bank & $1.99 Coin Store"
-      aria-label={`Open Coin Pack Store, ${bolts} Coins`}
+      title="Royal Crown Treasury & Wax Packs"
+      aria-label={`Open Royal Treasury, ${bolts} Crowns`}
     >
-      {/* Left Overlapping 3D Gold Coin with Green '+' Badge */}
-      <div className="relative z-10 -mr-3.5 flex items-center justify-center transition-transform group-hover:scale-105">
-        <GoldDollarCoinSvg size={isSmall ? 28 : 34} showPlusBadge />
+      {/* Left Overlapping Burnished Gold Crown Medallion */}
+      <div className="relative z-10 -mr-3 flex items-center justify-center transition-transform group-hover:scale-105">
+        <GoldDollarCoinSvg size={isSmall ? 26 : 32} showPlusBadge />
       </div>
 
-      {/* Crisp White Rounded Pill Track with Thick Black Outline & Brass Rivet Dot */}
+      {/* Warm Espresso Velvet & Antique Gold Plaque */}
       <div
-        className={`bg-white border-[2.6px] border-[#141824] rounded-xl shadow-[0_3.5px_0_#141824,inset_0_-3px_0_#CBD5E1] flex items-center justify-end gap-1 ${
-          isSmall ? 'pl-4 pr-2.5 py-0.5 min-w-[66px]' : 'pl-5 pr-3.5 py-0.5 min-w-[84px]'
+        className={`bg-[#241713] border border-[#8C5B38] hover:border-[#D97706] rounded-xl shadow-[0_2px_0_#120B09,inset_0_1px_0_rgba(254,240,138,0.16)] flex items-center justify-end gap-1 transition-colors ${
+          isSmall ? 'pl-4 pr-2.5 py-0.5 min-w-[64px]' : 'pl-4.5 pr-3 py-0.5 min-w-[78px]'
         }`}
       >
         <span
-          className={`font-game-display font-bold text-[#111318] tabular-nums tracking-tight leading-tight ${
-            isSmall ? 'text-xs' : 'text-[15px]'
+          className={`font-mono font-bold text-[#FEF08A] tabular-nums tracking-tight leading-tight ${
+            isSmall ? 'text-xs' : 'text-[14px]'
           }`}
         >
           {Math.round(bolts)}
@@ -1002,117 +1007,127 @@ export const BrassScrewChestSvg: React.FC<BrassScrewChestSvgProps> = ({
     >
       <defs>
         <linearGradient id="chestBrassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#FFF066" />
+          <stop offset="0%" stopColor="#FEF08A" />
           <stop offset="50%" stopColor="#F59E0B" />
           <stop offset="100%" stopColor="#92400E" />
         </linearGradient>
-        <linearGradient id="chestRoyalWoodGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#3B66FF" />
-          <stop offset="100%" stopColor="#1D3EC2" />
+        <linearGradient id="chestMahoganyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#7C2D12" />
+          <stop offset="100%" stopColor="#431407" />
         </linearGradient>
       </defs>
 
-      {/* Radial Golden Glow when Ready or Opened */}
+      {/* Warm Candlelight Glow when Ready or Opened */}
       {(isReady || isOpened) && (
         <circle
           cx="36"
           cy="36"
           r="33"
-          fill={isOpened ? '#5CE619' : '#FDE047'}
-          fillOpacity="0.26"
+          fill={isOpened ? '#34D399' : '#FDE047'}
+          fillOpacity="0.24"
         />
       )}
 
-      {/* 3D Chest Base Shadow */}
+      {/* Mahogany Treasury Base Shadow */}
       <rect
         x="10"
         y="34"
         width="52"
-        height="28"
+        height="27"
         rx="8"
-        fill="#0D121F"
-        stroke="#141824"
-        strokeWidth="2.8"
+        fill="#160C09"
+        stroke="#24130D"
+        strokeWidth="2.4"
       />
 
-      {/* Chest Lower Royal-Blue & Brass Vault Body */}
+      {/* Lower Oiled Mahogany Treasury Box */}
       <rect
         x="10"
         y="31"
         width="52"
-        height="27"
+        height="26"
         rx="7"
-        fill="url(#chestRoyalWoodGrad)"
-        stroke="#141824"
-        strokeWidth="2.8"
+        fill="url(#chestMahoganyGrad)"
+        stroke="#24130D"
+        strokeWidth="2.4"
       />
-      {/* Brass Vertical Straps */}
+      {/* Burnished Gold Vertical Ribbons */}
       <rect
         x="18"
         y="31"
-        width="7"
-        height="27"
+        width="6.5"
+        height="26"
         fill="url(#chestBrassGrad)"
-        stroke="#141824"
-        strokeWidth="2"
+        stroke="#24130D"
+        strokeWidth="1.8"
       />
       <rect
-        x="47"
+        x="47.5"
         y="31"
-        width="7"
-        height="27"
+        width="6.5"
+        height="26"
         fill="url(#chestBrassGrad)"
-        stroke="#141824"
-        strokeWidth="2"
+        stroke="#24130D"
+        strokeWidth="1.8"
       />
 
-      {/* Overflowing Gold Coins inside when Opened */}
+      {/* Overflowing Royal Crowns inside when Opened */}
       {isOpened && (
         <g>
-          <circle cx="27" cy="27" r="7" fill="#FFD700" stroke="#141824" strokeWidth="2" />
-          <circle cx="36" cy="24" r="8" fill="#FFF066" stroke="#141824" strokeWidth="2" />
-          <circle cx="45" cy="27" r="7" fill="#FFB800" stroke="#141824" strokeWidth="2" />
+          <circle cx="27" cy="27" r="6.8" fill="#F59E0B" stroke="#24130D" strokeWidth="1.8" />
+          <circle cx="36" cy="24" r="7.8" fill="#FEF08A" stroke="#24130D" strokeWidth="1.8" />
+          <circle cx="45" cy="27" r="6.8" fill="#D97706" stroke="#24130D" strokeWidth="1.8" />
         </g>
       )}
 
-      {/* Domed 3D Chest Lid (Tilted open if isOpened) */}
+      {/* Domed Brass & Velvet Lid (Tilted open if isOpened) */}
       <g transform={isOpened ? 'translate(0, -8) rotate(-8 36 24)' : ''}>
         <path
           d="M 10 32 C 10 16, 62 16, 62 32 Z"
           fill="url(#chestBrassGrad)"
-          stroke="#141824"
-          strokeWidth="2.8"
+          stroke="#24130D"
+          strokeWidth="2.4"
           strokeLinejoin="round"
         />
         <path
           d="M 17 26 C 24 19, 48 19, 55 26"
           fill="none"
-          stroke="#FFFFFF"
-          strokeWidth="2.2"
+          stroke="#FFFBEB"
+          strokeWidth="2"
           strokeLinecap="round"
-          strokeOpacity="0.8"
+          strokeOpacity="0.78"
         />
       </g>
 
-      {/* Center Star-Keyhole Escutcheon Lock Plate */}
-      <rect
-        x="29"
-        y="27"
-        width="14"
-        height="16"
-        rx="4"
-        fill="url(#chestBrassGrad)"
-        stroke="#141824"
-        strokeWidth="2.4"
+      {/* Center Crimson Wax Seal Clasp */}
+      <circle
+        cx="36"
+        cy="34"
+        r="8.5"
+        fill="#BE123C"
+        stroke="#24130D"
+        strokeWidth="2.2"
       />
-      <circle cx="36" cy="33.5" r="2.6" fill="#141824" />
-      <rect x="34.8" y="34.5" width="2.4" height="4.5" fill="#141824" />
+      <circle
+        cx="36"
+        cy="34"
+        r="5.8"
+        fill="none"
+        stroke="#FDA4AF"
+        strokeWidth="1.1"
+        strokeOpacity="0.8"
+      />
+      <path
+        d="M 33.2 35.8 L 32.8 32.2 L 34.8 33.6 L 36 31.4 L 37.2 33.6 L 39.2 32.2 L 38.8 35.8 Z"
+        fill="#FEF08A"
+      />
     </svg>
   );
 };
 
 /**
- * 13. Expressive 3D Artisan Companion Medallion Portrait (Clara, Nora, or Viktor)
+ * Expressive Royal Archivist Companion Medallion Portrait
+ * (Camille Beaumont, Haruto Sato, or Lorenzo Bellini)
  */
 export const ArtisanAvatarSvg: React.FC<{
   themeId: 'stained_glass' | 'knit_yarn' | 'retro_gadget';
@@ -1120,16 +1135,16 @@ export const ArtisanAvatarSvg: React.FC<{
 }> = ({ themeId, size = 36 }) => {
   const accentColor =
     themeId === 'stained_glass'
-      ? '#F59E0B'
+      ? '#E11D48'
       : themeId === 'knit_yarn'
-      ? '#F43F5E'
-      : '#38BDF8';
+      ? '#D97706'
+      : '#0EA5E9';
   const hairColor =
     themeId === 'stained_glass'
-      ? '#9A3412'
+      ? '#5C2C1D'
       : themeId === 'knit_yarn'
-      ? '#B45309'
-      : '#475569';
+      ? '#1E1B18'
+      : '#64748B';
 
   return (
     <svg
@@ -1139,104 +1154,104 @@ export const ArtisanAvatarSvg: React.FC<{
       className="shrink-0 overflow-visible select-none"
       aria-hidden="true"
     >
-      {/* 3D Brass & Enamel Medallion Frame */}
+      {/* Antique Brass & Velvet Medallion Frame */}
       <circle
         cx="24"
-        cy="25.5"
-        r="21"
-        fill="#0D121F"
-        stroke="#141824"
-        strokeWidth="2.8"
+        cy="25.2"
+        r="20.8"
+        fill="#140C09"
+        stroke="#22120B"
+        strokeWidth="2.4"
       />
       <circle
         cx="24"
         cy="23.5"
-        r="21"
-        fill={accentColor}
-        stroke="#141824"
-        strokeWidth="2.8"
+        r="20.6"
+        fill="#D97706"
+        stroke="#22120B"
+        strokeWidth="2.2"
       />
       <circle
         cx="24"
         cy="23.5"
-        r="17.5"
-        fill="#1B253B"
-        stroke="#141824"
-        strokeWidth="2"
+        r="17.4"
+        fill="#2A1B16"
+        stroke="#22120B"
+        strokeWidth="1.8"
       />
 
-      {/* Shoulders / Artisan Tunic */}
+      {/* Archivist Velvet Coat */}
       <path
         d="M 11 38 C 13 30, 35 30, 37 38"
         fill={accentColor}
-        stroke="#141824"
-        strokeWidth="2.2"
+        stroke="#22120B"
+        strokeWidth="2"
         strokeLinecap="round"
       />
 
-      {/* Head & Warm Face */}
+      {/* Head & Warm Portrait */}
       <circle
         cx="24"
         cy="22"
         r="9.2"
-        fill="#FDE68A"
-        stroke="#141824"
-        strokeWidth="2.2"
-      />
-
-      {/* Hair / Cap by Artisan */}
-      <path
-        d="M 14.5 21 C 14.5 12, 33.5 12, 33.5 21 C 30 16.5, 18 16.5, 14.5 21 Z"
-        fill={hairColor}
-        stroke="#141824"
+        fill="#FDE6C4"
+        stroke="#22120B"
         strokeWidth="2"
       />
 
+      {/* Hair */}
+      <path
+        d="M 14.5 21 C 14.5 12, 33.5 12, 33.5 21 C 30 16.5, 18 16.5, 14.5 21 Z"
+        fill={hairColor}
+        stroke="#22120B"
+        strokeWidth="1.8"
+      />
+
       {/* Eyes & Warm Smile */}
-      <circle cx="20.6" cy="22.2" r="1.4" fill="#141824" />
-      <circle cx="27.4" cy="22.2" r="1.4" fill="#141824" />
+      <circle cx="20.6" cy="22.2" r="1.35" fill="#22120B" />
+      <circle cx="27.4" cy="22.2" r="1.35" fill="#22120B" />
       <path
         d="M 21 26 C 22.5 27.6, 25.5 27.6, 27 26"
         fill="none"
-        stroke="#141824"
-        strokeWidth="1.8"
+        stroke="#22120B"
+        strokeWidth="1.7"
         strokeLinecap="round"
       />
 
-      {/* Theme-Specific Artisan Prop Badge (Glass Loupe / Knitting Needles / Horology Monocle) */}
+      {/* Theme-Specific Archivist Prop (Wax Seal Loupe / Gold Ribbon Scissors / Horology Monocle) */}
       {themeId === 'stained_glass' && (
         <circle
           cx="27.5"
           cy="22"
           r="3.6"
-          fill="#38BDF8"
-          fillOpacity="0.35"
-          stroke="#FFE042"
-          strokeWidth="1.8"
+          fill="#FEF08A"
+          fillOpacity="0.28"
+          stroke="#F59E0B"
+          strokeWidth="1.7"
         />
       )}
       {themeId === 'knit_yarn' && (
         <g>
           <line
-            x1="12"
-            y1="12"
-            x2="20"
-            y2="17"
-            stroke="#FFE042"
-            strokeWidth="2.2"
+            x1="11.5"
+            y1="13"
+            x2="19.5"
+            y2="17.5"
+            stroke="#FEF08A"
+            strokeWidth="2"
             strokeLinecap="round"
           />
-          <circle cx="11.5" cy="11.5" r="2.5" fill="#F43F5E" stroke="#141824" strokeWidth="1.5" />
+          <circle cx="11.5" cy="12.5" r="2.5" fill="#E11D48" stroke="#22120B" strokeWidth="1.4" />
         </g>
       )}
       {themeId === 'retro_gadget' && (
         <circle
           cx="20.5"
           cy="22"
-          r="3.8"
+          r="3.7"
           fill="none"
           stroke="#38BDF8"
-          strokeWidth="2"
+          strokeWidth="1.9"
         />
       )}
     </svg>
@@ -1244,8 +1259,8 @@ export const ArtisanAvatarSvg: React.FC<{
 };
 
 /**
- * 14. Interactive 3-Stage Story Chapter Restoration Scene Illustration
- * Renders progressive visual transformation from Stage 0 (Frostbound/Tangled) -> Stage 3 (Radiant Masterpiece)
+ * Interactive 3-Stage Royal Curio Chapter Unboxing Scene Illustration
+ * Renders progressive heirloom unveiling from Stage 0 (Wax-Sealed) -> Stage 3 (Awakened Curio)
  */
 export const StorySceneIllustrationSvg: React.FC<{
   themeId: 'stained_glass' | 'knit_yarn' | 'retro_gadget';
@@ -1256,196 +1271,204 @@ export const StorySceneIllustrationSvg: React.FC<{
       width="100%"
       height="96"
       viewBox="0 0 280 96"
-      className="rounded-xl overflow-hidden border-2 border-[#141824] shadow-inner select-none"
-      aria-label={`Story Restoration Scene Stage ${stage} of 3`}
+      className="rounded-xl overflow-hidden border border-[#5B3A29] shadow-inner select-none"
+      aria-label={`Royal Curio Chapter Stage ${stage} of 3`}
     >
       <defs>
-        <linearGradient id="storyBgCold" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor={stage >= 2 ? '#1E1B4B' : '#0F172A'} />
+        <linearGradient id="storyDeskWarm" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor={stage >= 2 ? '#341D17' : '#211410'} />
           <stop
             offset="100%"
             stopColor={
               stage === 3
-                ? '#78350F'
+                ? '#5C2C16'
                 : stage >= 1
-                ? '#1E293B'
-                : '#090D16'
+                ? '#2A1914'
+                : '#160E0B'
             }
           />
         </linearGradient>
-        <radialGradient id="storyWarmGlow" cx="50%" cy="50%" r="55%">
+        <radialGradient id="storyCandleGlow" cx="50%" cy="50%" r="58%">
           <stop
             offset="0%"
-            stopColor={stage === 3 ? '#FDE047' : stage >= 1 ? '#F59E0B' : '#38BDF8'}
-            stopOpacity={stage === 0 ? '0.18' : stage === 3 ? '0.62' : '0.36'}
+            stopColor={stage === 3 ? '#FDE047' : stage >= 1 ? '#F59E0B' : '#B45309'}
+            stopOpacity={stage === 0 ? '0.2' : stage === 3 ? '0.58' : '0.36'}
           />
-          <stop offset="100%" stopColor="#0F172A" stopOpacity="0" />
+          <stop offset="100%" stopColor="#160E0B" stopOpacity="0" />
         </radialGradient>
       </defs>
 
-      {/* Scene Backdrop */}
-      <rect x="0" y="0" width="280" height="96" fill="url(#storyBgCold)" />
-      <circle cx="140" cy="48" r="88" fill="url(#storyWarmGlow)" />
+      {/* Warm Oiled Walnut & Velvet Alcove Backdrop */}
+      <rect x="0" y="0" width="280" height="96" fill="url(#storyDeskWarm)" />
+      <circle cx="140" cy="48" r="92" fill="url(#storyCandleGlow)" />
+      {/* Gold Foil Arch Trim */}
+      <rect
+        x="6"
+        y="6"
+        width="268"
+        height="84"
+        rx="8"
+        fill="none"
+        stroke="#F59E0B"
+        strokeOpacity={stage >= 2 ? '0.45' : '0.22'}
+        strokeWidth="1.2"
+      />
 
-      {/* STAGE 0: Winter Frost Icicles at top (melts away as stage increases) */}
+      {/* STAGE 0-2: Crimson Satin Ribbons Crossing the Alcove (untied as stage rises) */}
       {stage < 3 && (
-        <g opacity={stage === 0 ? 0.9 : stage === 1 ? 0.55 : 0.25}>
-          <polygon points="18,0 26,22 34,0" fill="#7DD3FC" stroke="#141824" strokeWidth="1.5" />
-          <polygon points="34,0 40,15 46,0" fill="#BAE6FD" stroke="#141824" strokeWidth="1.5" />
-          <polygon points="232,0 240,20 248,0" fill="#7DD3FC" stroke="#141824" strokeWidth="1.5" />
-          <polygon points="248,0 255,14 262,0" fill="#BAE6FD" stroke="#141824" strokeWidth="1.5" />
+        <g opacity={stage === 0 ? 0.92 : stage === 1 ? 0.55 : 0.28}>
+          <path d="M 0 18 L 62 18" stroke="#E11D48" strokeWidth="7" />
+          <path d="M 218 18 L 280 18" stroke="#E11D48" strokeWidth="7" />
+          <circle cx="38" cy="18" r="8" fill="#BE123C" stroke="#22120B" strokeWidth="1.8" />
+          <circle cx="242" cy="18" r="8" fill="#BE123C" stroke="#22120B" strokeWidth="1.8" />
         </g>
       )}
 
-      {/* THEME 1: Stained-Glass Conservatory Rose Arch */}
+      {/* ACT I: Parisian Imperial Songbird Egg in Velvet Display Case */}
       {themeId === 'stained_glass' && (
-        <g transform="translate(140, 50)">
-          {/* Outer Gothic Brass Arch */}
+        <g transform="translate(140, 52)">
+          {/* Velvet Pedestal */}
+          <rect x="-46" y="18" width="92" height="16" rx="5" fill="#4C1D24" stroke="#22120B" strokeWidth="2" />
+          <rect x="-40" y="21" width="80" height="3" rx="1.5" fill="#F59E0B" fillOpacity="0.6" />
+          {/* Lower Gilded Egg Shell */}
           <path
-            d="M -52 38 L -52 -6 C -52 -36, 52 -36, 52 -6 L 52 38 Z"
-            fill="#111827"
-            stroke={stage >= 1 ? '#FBBF24' : '#475569'}
-            strokeWidth="3"
+            d="M -22 18 C -24 -6, -14 -24, 0 -24 C 14 -24, 24 -6, 22 18 Z"
+            fill={stage >= 1 ? '#D97706' : '#573B2D'}
+            stroke="#22120B"
+            strokeWidth="2.2"
           />
-          {/* Stage 1+: Lower Warm Amber & Crimson Petals */}
-          <circle
-            cx="0"
-            cy="-4"
-            r="30"
-            fill={stage >= 1 ? '#F59E0B' : '#1E293B'}
-            fillOpacity={stage >= 1 ? 0.85 : 0.4}
-            stroke="#141824"
-            strokeWidth="2.4"
+          {/* Crimson & Emerald Enamel Band */}
+          <path
+            d="M -21 4 L 21 4"
+            stroke={stage >= 1 ? '#E11D48' : '#78350F'}
+            strokeWidth="5"
           />
-          {/* Stage 2+: Solar Keyhole Prism & Emerald/Azure Vitrail Segments */}
+          {/* Stage 2+: Hinged Upper Dome Lifting + Jewel Crest */}
           {stage >= 2 && (
-            <g>
-              <circle cx="-15" cy="-4" r="9" fill="#FF3B5C" stroke="#141824" strokeWidth="1.8" />
-              <circle cx="15" cy="-4" r="9" fill="#00E575" stroke="#141824" strokeWidth="1.8" />
-              <circle cx="0" cy="-19" r="9" fill="#00B8FF" stroke="#141824" strokeWidth="1.8" />
-              <circle cx="0" cy="11" r="9" fill="#A855F7" stroke="#141824" strokeWidth="1.8" />
+            <g transform={stage === 3 ? 'translate(14, -18) rotate(24)' : 'translate(6, -8) rotate(12)'}>
+              <path
+                d="M -18 0 C -18 -18, 18 -18, 18 0 Z"
+                fill="#F59E0B"
+                stroke="#22120B"
+                strokeWidth="2"
+              />
+              <circle cx="0" cy="-16" r="3.5" fill="#FEF08A" stroke="#22120B" strokeWidth="1.4" />
             </g>
           )}
-          {/* Center Star-Keyhole Core */}
-          <circle
-            cx="0"
-            cy="-4"
-            r="8"
-            fill={stage >= 2 ? '#FFE042' : '#38BDF8'}
-            stroke="#141824"
-            strokeWidth="2"
-          />
-          {/* Stage 3 Masterpiece: Blooming Golden Clockwork Orchids on Left & Right */}
+          {/* Stage 3: Awakened Golden & Emerald Songbird Rising */}
           {stage === 3 && (
-            <g>
-              <circle cx="-78" cy="10" r="14" fill="#FF3B5C" stroke="#141824" strokeWidth="2.2" />
-              <circle cx="-78" cy="10" r="6" fill="#FFE042" stroke="#141824" strokeWidth="1.6" />
-              <circle cx="78" cy="10" r="14" fill="#00E575" stroke="#141824" strokeWidth="2.2" />
-              <circle cx="78" cy="10" r="6" fill="#FFE042" stroke="#141824" strokeWidth="1.6" />
+            <g transform="translate(0, -16)">
+              <path d="M -24 -2 C -40 -14, -36 4, -14 4 Z" fill="#FDE047" stroke="#22120B" strokeWidth="1.6" />
+              <path d="M 24 -2 C 40 -14, 36 4, 14 4 Z" fill="#FDE047" stroke="#22120B" strokeWidth="1.6" />
+              <ellipse cx="0" cy="0" rx="11" ry="8" fill="#10B981" stroke="#22120B" strokeWidth="1.8" />
+              <circle cx="0" cy="-1" r="3.5" fill="#FEF08A" />
             </g>
           )}
         </g>
       )}
 
-      {/* THEME 2: Wool Craze Haberdashery Loom & Sun-Spun Tapestry */}
+      {/* ACT II: Kyoto Lacquer Tea Chest & Silk Kumihimo Cords */}
       {themeId === 'knit_yarn' && (
-        <g transform="translate(140, 48)">
-          {/* Mahogany Loom Posts */}
-          <rect x="-74" y="-34" width="10" height="68" rx="3" fill="#9A3412" stroke="#141824" strokeWidth="2.2" />
-          <rect x="64" y="-34" width="10" height="68" rx="3" fill="#9A3412" stroke="#141824" strokeWidth="2.2" />
-          <rect x="-80" y="-36" width="160" height="9" rx="4" fill="#D97706" stroke="#141824" strokeWidth="2.2" />
-
-          {/* Stage 1+: Taut Golden Merino Warp Threads */}
-          {[-48, -32, -16, 0, 16, 32, 48].map((wx) => (
-            <line
-              key={wx}
-              x1={wx}
-              y1="-27"
-              x2={wx}
-              y2="32"
-              stroke={stage >= 1 ? '#FDE047' : '#475569'}
-              strokeWidth="2.2"
-              strokeDasharray={stage === 0 ? '4 4' : undefined}
-            />
-          ))}
-
-          {/* Stage 2+: Woven Crimson & Emerald Tapestry Banner */}
-          {stage >= 1 && (
-            <rect
-              x="-54"
-              y="-20"
-              width="108"
-              height={stage === 1 ? 22 : stage === 2 ? 36 : 48}
-              rx="6"
-              fill={stage >= 2 ? '#E11D48' : '#F59E0B'}
-              stroke="#141824"
-              strokeWidth="2.4"
-            />
-          )}
+        <g transform="translate(140, 52)">
+          {/* Urushi Lacquer Chest Body */}
+          <rect
+            x="-52"
+            y="-12"
+            width="104"
+            height="42"
+            rx="6"
+            fill={stage >= 1 ? '#7F1D1D' : '#3B1815'}
+            stroke="#22120B"
+            strokeWidth="2.2"
+          />
+          {/* Gold Kintsugi Seam & Brass Corner Clasps */}
+          <path
+            d="M -46 8 L -14 2 L 10 14 L 44 4"
+            fill="none"
+            stroke={stage >= 1 ? '#FDE047' : '#78350F'}
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+          <rect x="-52" y="-12" width="12" height="10" fill="#F59E0B" stroke="#22120B" strokeWidth="1.6" />
+          <rect x="40" y="-12" width="12" height="10" fill="#F59E0B" stroke="#22120B" strokeWidth="1.6" />
+          {/* Stage 2+: Open Lacquer Lid & Rising Porcelain Tea Bowl */}
           {stage >= 2 && (
-            <circle cx="0" cy="2" r="13" fill="#FFE042" stroke="#141824" strokeWidth="2.2" />
+            <g>
+              <rect
+                x="-54"
+                y={stage === 3 ? '-34' : '-24'}
+                width="108"
+                height="11"
+                rx="4"
+                fill="#991B1B"
+                stroke="#F59E0B"
+                strokeWidth="1.6"
+              />
+              <path
+                d="M -18 -12 C -18 2, 18 2, 18 -12 Z"
+                fill="#F5EFE6"
+                stroke="#22120B"
+                strokeWidth="1.8"
+              />
+              <path d="M -8 -12 L 4 -4" stroke="#F59E0B" strokeWidth="1.6" />
+            </g>
           )}
+          {/* Stage 3: Rising Steam & Sakura Blossoms */}
           {stage === 3 && (
             <g>
-              <circle cx="-34" cy="2" r="8" fill="#00E575" stroke="#141824" strokeWidth="2" />
-              <circle cx="34" cy="2" r="8" fill="#00B8FF" stroke="#141824" strokeWidth="2" />
+              <circle cx="-72" cy="-6" r="7" fill="#FDA4AF" stroke="#22120B" strokeWidth="1.5" />
+              <circle cx="72" cy="-6" r="7" fill="#FDA4AF" stroke="#22120B" strokeWidth="1.5" />
+              <path d="M -4 -18 Q -8 -26 0 -32 M 6 -18 Q 10 -26 4 -32" fill="none" stroke="#FEF08A" strokeWidth="1.8" strokeLinecap="round" />
             </g>
           )}
         </g>
       )}
 
-      {/* THEME 3: Dormant Clockwork Songbird Automaton */}
+      {/* ACT III: Venetian Astral Chronometer in Velvet Case */}
       {themeId === 'retro_gadget' && (
         <g transform="translate(140, 50)">
-          {/* Brass Perch & Escapement Ring */}
+          {/* Velvet Case Rim & Brass Pocket Watch */}
           <circle
             cx="0"
-            cy="-2"
-            r="32"
-            fill="#111827"
-            stroke={stage >= 1 ? '#FBBF24' : '#475569'}
-            strokeWidth="2.8"
+            cy="0"
+            r="31"
+            fill="#1D120F"
+            stroke={stage >= 1 ? '#F59E0B' : '#6B442A'}
+            strokeWidth="3.2"
           />
-          {/* Spread Golden Wings on Stage 2+ */}
-          {stage >= 2 && (
+          <circle
+            cx="0"
+            cy="0"
+            r="24"
+            fill={stage >= 2 ? '#1E3A8A' : '#2B1B17'}
+            stroke="#FDE047"
+            strokeOpacity="0.65"
+            strokeWidth="1.6"
+          />
+          {/* Celestial Dial Rings & Brass Hands */}
+          {stage >= 1 && (
             <g>
-              <path
-                d="M -18 -2 C -54 -26, -72 -6, -42 12 Z"
-                fill={stage === 3 ? '#FFE042' : '#F59E0B'}
-                stroke="#141824"
-                strokeWidth="2.2"
-              />
-              <path
-                d="M 18 -2 C 54 -26, 72 -6, 42 12 Z"
-                fill={stage === 3 ? '#FFE042' : '#F59E0B'}
-                stroke="#141824"
-                strokeWidth="2.2"
-              />
+              <circle cx="0" cy="0" r="14" fill="none" stroke="#F59E0B" strokeWidth="1.6" strokeDasharray="3 3" />
+              <line x1="0" y1="0" x2="0" y2="-16" stroke="#FEF08A" strokeWidth="2.2" strokeLinecap="round" />
+              <line x1="0" y1="0" x2="12" y2="6" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" />
             </g>
           )}
-          {/* Songbird Body & Sapphire Tourbillon Core */}
-          <ellipse
-            cx="0"
-            cy="0"
-            rx="20"
-            ry="15"
-            fill={stage >= 1 ? '#F59E0B' : '#475569'}
-            stroke="#141824"
-            strokeWidth="2.4"
-          />
+          {/* Center Sapphire Tourbillon */}
           <circle
             cx="0"
             cy="0"
-            r="7"
-            fill={stage >= 2 ? '#00B8FF' : '#94A3B8'}
-            stroke="#141824"
-            strokeWidth="2"
+            r="5.5"
+            fill={stage >= 2 ? '#38BDF8' : '#A8A29E'}
+            stroke="#22120B"
+            strokeWidth="1.6"
           />
-          {/* Stage 3 Masterpiece: Acoustic Chime Waves */}
+          {/* Stage 3: Golden Astral Rays & Chime Arcs */}
           {stage === 3 && (
-            <g stroke="#7DD3FC" strokeWidth="2.2" fill="none" strokeLinecap="round">
-              <path d="M -68 -18 C -78 -8, -78 8, -68 18" />
-              <path d="M 68 -18 C 78 -8, 78 8, 68 18" />
+            <g stroke="#FEF08A" strokeWidth="2" fill="none" strokeLinecap="round">
+              <path d="M -52 -16 C -62 -6, -62 6, -52 16" />
+              <path d="M 52 -16 C 62 -6, 62 6, 52 16" />
+              <circle cx="-42" cy="-20" r="3" fill="#FEF08A" />
+              <circle cx="42" cy="-20" r="3" fill="#FEF08A" />
             </g>
           )}
         </g>

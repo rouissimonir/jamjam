@@ -7,98 +7,98 @@ export interface AsoLocaleEntry {
 }
 
 /**
- * Pillar D: The 10-Locale U.S. Cross-Localization Matrix (1,600 Characters of Indexing)
+ * Blue-Ocean 10-Locale U.S. Cross-Localization Matrix (1,600 Characters of Indexing)
  * Apple indexes all 10 of these locales in the U.S. App Store simultaneously.
- * Targets uncrowded mid-competition 3rd-Gen tactile clusters ("glass puzzle", "unpin sort",
- * "acrylic jam", "color unpack", "tidy logic", "stained mosaic", "yarn unpin", "bento unpack").
+ * Targets untapped, high-intent cozy/ASMR clusters ("wax seal", "satin ribbon",
+ * "asmr unbox", "gift unwrap", "heirloom sort", "no timer puzzle", "cozy untie").
  */
 export const US_CROSS_LOCALIZATION_LOCALES: ReadonlyArray<AsoLocaleEntry> = [
   {
     localeCode: 'en-US',
     localeName: 'English (U.S. Primary)',
-    title30: 'Glass Unpin: Color Unpack Jam',
-    subtitle30: 'Tactile Acrylic & Mosaic Sort',
+    title30: 'Royal Post: Wax & Ribbon',
+    subtitle30: 'ASMR Seal & Satin Unbox Sort',
     keywordField100:
-      'glass,puzzle,unpin,sort,acrylic,jam,color,unpack,tidy,logic,mosaic,clasp,crystal,pendulum,layer,3d',
+      'wax,seal,ribbon,unbox,asmr,sort,satin,parcel,gift,unwrap,royal,post,heirloom,untie,cozy,puzzle,zen',
   },
   {
     localeCode: 'es-MX',
     localeName: 'Spanish (Mexico)',
-    title30: 'Acrylic Jam: Tidy Logic Sort',
-    subtitle30: 'Stained Glass & Yarn Unpin 3D',
+    title30: 'Wax Seal: Satin Ribbon Unbox',
+    subtitle30: 'Relaxing Gift & Heirloom Sort',
     keywordField100:
-      'stained,yarn,knit,wool,ribbon,sewing,pin,bento,box,toy,gadget,watch,console,clear,shatter,chime,tap',
+      'stamp,signet,crest,silk,bow,knot,spool,bobbin,velvet,walnut,luxury,craft,atelier,curio,vintage,box',
   },
   {
     localeCode: 'ar',
     localeName: 'Arabic (U.S. Indexed)',
-    title30: 'Color Unpack: Stained Mosaic',
-    subtitle30: 'Unpin Layered Glass & Ribbons',
+    title30: 'Satin Ribbon: ASMR Gift Sort',
+    subtitle30: 'Crack Wax Seals & Unwrap Art',
     keywordField100:
-      'translucent,plate,slab,brass,clasp,buffer,toolbox,workshop,renovate,atelier,relax,asmr,tactile,drop',
+      'envelope,letter,mail,chest,locket,egg,watch,music,celesta,chime,crack,snip,scissors,brass,rack,5',
   },
   {
     localeCode: 'zh-Hans',
     localeName: 'Chinese (Simplified)',
-    title30: 'Unpin Sort: Tactile Bento Box',
-    subtitle30: '3D Layered Toy & Glass Puzzle',
+    title30: 'Royal Unbox: Wax Seal Puzzle',
+    subtitle30: 'Untie Silk Ribbons & Collect',
     keywordField100:
-      'unbox,disassemble,teardown,retro,handheld,chrono,gear,jewel,cabochon,prism,shard,swing,gravity,free',
+      'tactile,sensory,haptic,crisp,calming,stress,relief,no,timer,offline,single,player,logic,tidy,layer',
   },
   {
     localeCode: 'zh-Hant',
     localeName: 'Chinese (Traditional)',
-    title30: 'Tidy Logic: Crystal Unpin Jam',
-    subtitle30: 'Match Clasps & Shatter Glass',
+    title30: 'Heirloom Unbox: Ribbon Jam',
+    subtitle30: 'Peel Wax & Wind Velvet Spools',
     keywordField100:
-      'embroidery,stitch,skein,spool,thread,fabric,weave,velvet,pearl,needle,unravel,cozy,craft,mosaic,art',
+      'kyoto,lacquer,venetian,parisian,paris,antique,jewelry,keepsake,treasury,gallery,collect,unlock,3d',
   },
   {
     localeCode: 'fr-CA',
     localeName: 'French (Canada)',
-    title30: 'Glass Puzzle: Acrylic Unpack',
-    subtitle30: '2.5D Tilt & Pendulum Physics',
+    title30: 'Wax & Ribbon: Cozy Unwrap',
+    subtitle30: 'Strategic Brass Rack Puzzle',
     keywordField100:
-      'brain,teaser,iq,spatial,depth,tilt,inspect,overlap,occlude,xray,magnet,revive,streak,booster,pocket',
+      'color,match,triple,three,queue,buffer,peg,slot,tray,swap,combo,fever,streak,brain,teaser,iq,smart',
   },
   {
     localeCode: 'ko',
     localeName: 'Korean (U.S. Indexed)',
-    title30: 'Knit & Glass: Unpin Sort 3D',
-    subtitle30: 'Pull Pins & Unravel Ribbons',
+    title30: 'ASMR Unbox: Royal Satin Sort',
+    subtitle30: 'Wax Stamps, Silk & Music Box',
     keywordField100:
-      'satisfying,haptic,vibrate,clack,ratchet,ding,bell,harmonic,zen,offline,no,wifi,single,player,casual',
+      'satisfying,soothing,whisper,soft,warm,candlelight,hint,colorblind,weave,stitch,embroidery,art,fun',
   },
   {
     localeCode: 'pt-BR',
     localeName: 'Portuguese (Brazil)',
-    title30: 'Bento Unpack: Tidy Glass Jam',
-    subtitle30: 'Sort Colored Pins & Toolboxes',
+    title30: 'Gift Unwrap: Wax & Silk Sort',
+    subtitle30: 'No Timer Tactile Unboxing',
     keywordField100:
-      'organizer,drawer,slot,socket,hole,tray,pack,match,triple,three,queue,drain,combo,chain,master,level',
+      'present,package,wrap,unseal,open,reveal,transform,story,chapter,companion,chronometer,orrery,tea',
   },
   {
     localeCode: 'ru',
     localeName: 'Russian (U.S. Indexed)',
-    title30: 'Mosaic Unpin: Crystal Sort 3D',
-    subtitle30: 'Tactile Glass & Gadget Puzzle',
+    title30: 'Ribbon Sort: Royal Wax ASMR',
+    subtitle30: 'Untie Knots & Open Heirlooms',
     keywordField100:
-      'stainedglass,glasspuzzle,unpinsort,acrylicjam,colorunpack,tidylogic,knitout,woolsort,pinjam,screwdom',
+      'waxseal,satinribbon,asmrunbox,giftunwrap,royalpost,ribbonsort,cozypuzzle,heirloombox,notimer,calm',
   },
   {
     localeCode: 'vi',
     localeName: 'Vietnamese (U.S. Indexed)',
-    title30: 'Acrylic Sort: Color Unpack 3D',
-    subtitle30: 'Unpin Clasps & Restore Studio',
+    title30: 'Parcel Sort: Wax Seal ASMR',
+    subtitle30: 'Unwind Ribbons & Collect Gold',
     keywordField100:
-      'stainedmosaic,yarnunpin,bentosort,toyunpack,crystaljam,clasppuzzle,ribbonsort,glassasmr,tidysort,2d',
+      'silksort,waxstamp,unboxgame,tactilesort,parcelunbox,ateliergame,curioshelf,velvetbox,crown,relax',
   },
 ];
 
 export const TARGET_KEYWORD_CLUSTERS = [
-  { cluster: 'glass puzzle', difficulty: 28, volume: 'High', status: 'Primary Title/Keyword' },
-  { cluster: 'unpin sort', difficulty: 24, volume: 'Med-High', status: 'Primary Title/Keyword' },
-  { cluster: 'acrylic jam', difficulty: 19, volume: 'Medium', status: 'Subtitle Indexed' },
-  { cluster: 'color unpack', difficulty: 31, volume: 'High', status: 'Primary Title/Keyword' },
-  { cluster: 'tidy logic', difficulty: 22, volume: 'Medium', status: 'Cross-Locale Indexed' },
+  { cluster: 'wax seal puzzle', difficulty: 14, volume: 'Med-High', status: 'Blue-Ocean Primary' },
+  { cluster: 'asmr unbox', difficulty: 18, volume: 'High', status: 'Subtitle Indexed' },
+  { cluster: 'satin ribbon sort', difficulty: 11, volume: 'Medium', status: 'Blue-Ocean Primary' },
+  { cluster: 'gift unwrap cozy', difficulty: 16, volume: 'Med-High', status: 'Cross-Locale Indexed' },
+  { cluster: 'no timer sort', difficulty: 21, volume: 'High', status: 'Cross-Locale Indexed' },
 ];

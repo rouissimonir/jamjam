@@ -21,6 +21,9 @@ import {
   evaluatePinFrostTap,
   decrementFrostForSharedPlatePins,
   evaluatePinChainLink,
+  IDLE_HINT_DELAY_MS,
+  evaluateIdleMovableHints,
+  HintPinCandidate,
 } from './rules.ts';
 import { LEVELS, LevelConfig, LevelPlateDef, LevelPinDef } from './levels.ts';
 import { haptics } from './haptics.ts';
@@ -39,6 +42,9 @@ export interface SceneTelemetry {
   plates: PlateTelemetryItem[];
   remainingPins: number;
   occludedPins: number;
+  movablePins: number;
+  idleHintActive: boolean;
+  hintedPinIds: string[];
   pendulumPlates: number;
   clearedPlates: number;
   totalPlates: number;
@@ -56,6 +62,11 @@ export interface SceneCallbacks {
   onFrostUpdated?: (crackedPinIds: string[], shatteredPinIds: string[], bonusBolts: number) => void;
   onChainBlockedPinTapped?: (pinId: string, partnerPinId: string, reason: string) => void;
   onChainDoublePulled?: (primaryPinId: string, partnerPinId: string, bonusBolts: number) => void;
+  onIdleHintChanged?: (
+    active: boolean,
+    movablePinIds: string[],
+    recommendedPinId: string | null
+  ) => void;
 }
 
 interface DrillHoleOffset {
@@ -127,8 +138,27 @@ interface ActiveFlyingPin {
   trailTimer: number;
 }
 
-const PARTICLE_POOL_SIZE = 84;
-const SHOCKWAVE_POOL_SIZE = 16;
+interface PooledCallout {
+  active: boolean;
+  text: Phaser.GameObjects.Text;
+  startY: number;
+  life: number;
+  maxLife: number;
+}
+
+interface AmbientMote {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  phase: number;
+  radius: number;
+}
+
+const PARTICLE_POOL_SIZE = 96;
+const SHOCKWAVE_POOL_SIZE = 18;
+const CALLOUT_POOL_SIZE = 8;
+const AMBIENT_MOTE_COUNT = 20;
 
 export class ScrewJamScene extends Phaser.Scene {
   private levelConfig!: LevelConfig;
@@ -139,8 +169,12 @@ export class ScrewJamScene extends Phaser.Scene {
   private particleGraphics!: Phaser.GameObjects.Graphics;
   private particlePool: PooledParticle[] = [];
   private shockwavePool: PooledShockwave[] = [];
+  private calloutPool: PooledCallout[] = [];
+  private ambientMotes: AmbientMote[] = [];
   private flyingPins: ActiveFlyingPin[] = [];
   private elapsedSec: number = 0;
+  private hitstopSec: number = 0;
+  private cameraTrauma: number = 0;
   private isInteracting: boolean = false;
   private xrayMode: boolean = false;
   private explodePeek: boolean = false;
@@ -151,10 +185,18 @@ export class ScrewJamScene extends Phaser.Scene {
   private finialSkinId: FinialSkinId = 'royal_brass';
   private removedPinIds: Set<string> = new Set();
   private frostMap: Record<string, number> = {};
+  private lastActionTimestampMs: number = performance.now();
+  private idleHintDelayMs: number = IDLE_HINT_DELAY_MS;
+  private idleHintActive: boolean = false;
+  private movableHintPinIds: Set<string> = new Set();
+  private preferredHintPinIds: Set<string> = new Set();
+  private recommendedHintPinId: string | null = null;
+  private activeToolboxColors: PinColor[] = [];
   private spatialTiltEnabled: boolean = true;
   private tiltX: number = 0.35; // 2.5D spatial tilt (-1..1)
   private tiltY: number = 0.45;
   private levelCompletedTriggered: boolean = false;
+  private firstTapCoachText: Phaser.GameObjects.Text | null = null;
   private boardBounds = { x: 20, y: 24, width: 360, height: 506 };
 
   constructor() {
@@ -188,6 +230,16 @@ export class ScrewJamScene extends Phaser.Scene {
         lineWidth: 2.5,
       });
     }
+    for (let i = 0; i < AMBIENT_MOTE_COUNT; i++) {
+      this.ambientMotes.push({
+        x: 34 + ((i * 53) % 332),
+        y: 44 + ((i * 79) % 452),
+        vx: (i % 2 === 0 ? 1 : -1) * (4 + (i % 5) * 1.4),
+        vy: -(5 + (i % 4) * 1.8),
+        phase: i * 0.72,
+        radius: 1.1 + (i % 3) * 0.65,
+      });
+    }
   }
 
   init(data?: {
@@ -197,6 +249,8 @@ export class ScrewJamScene extends Phaser.Scene {
     themeId?: TactileThemeId;
     finialSkinId?: FinialSkinId;
     spatialTiltEnabled?: boolean;
+    activeToolboxColors?: PinColor[];
+    idleHintDelayMs?: number;
   }) {
     if (data?.levelConfig) {
       this.levelConfig = data.levelConfig;
@@ -223,15 +277,32 @@ export class ScrewJamScene extends Phaser.Scene {
     if (typeof data?.spatialTiltEnabled === 'boolean') {
       this.spatialTiltEnabled = data.spatialTiltEnabled;
     }
+    if (typeof data?.idleHintDelayMs === 'number' && data.idleHintDelayMs >= 1500) {
+      this.idleHintDelayMs = data.idleHintDelayMs;
+    }
+    this.activeToolboxColors = data?.activeToolboxColors
+      ? [...data.activeToolboxColors]
+      : this.levelConfig.toolboxColors.length > 0
+      ? [this.levelConfig.toolboxColors[0]]
+      : [];
     this.explodePeek = false;
     this.explodeFactor = 0;
     this.nudgePulseAlpha = 0;
     this.elapsedSec = 0;
+    this.hitstopSec = 0;
+    this.cameraTrauma = 0;
+    this.lastActionTimestampMs = performance.now();
+    this.idleHintActive = false;
+    this.movableHintPinIds.clear();
+    this.preferredHintPinIds.clear();
+    this.recommendedHintPinId = null;
     this.plates.clear();
     this.pins.clear();
     this.removedPinIds.clear();
     this.frostMap = createInitialFrostMap(this.levelConfig.pins);
     this.flyingPins = [];
+    this.calloutPool = [];
+    this.firstTapCoachText = null;
     this.isInteracting = false;
     this.levelCompletedTriggered = false;
     for (let i = 0; i < this.particlePool.length; i++) {
@@ -257,6 +328,43 @@ export class ScrewJamScene extends Phaser.Scene {
     this.particleGraphics = this.add.graphics();
     this.particleGraphics.setDepth(100);
 
+    // 4B. Zero-GC Pooled Floating Callout Texts (for instant tactile canvas reward feedback)
+    this.calloutPool = [];
+    for (let i = 0; i < CALLOUT_POOL_SIZE; i++) {
+      const txt = this.add.text(200, 260, '', {
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: '12px',
+        fontStyle: 'bold',
+        color: '#FEF08A',
+        stroke: '#1A0E0A',
+        strokeThickness: 4,
+      });
+      txt.setOrigin(0.5, 0.5);
+      txt.setDepth(130);
+      txt.setVisible(false);
+      this.calloutPool.push({
+        active: false,
+        text: txt,
+        startY: 260,
+        life: 0,
+        maxLife: 0.78,
+      });
+    }
+
+    // 4C. Zero-Popup First-Tap Diegetic Coach for Parcel 1 only (vanishes on first tap!)
+    if (this.levelConfig.id === 1 && !this.levelConfig.isDaily) {
+      this.firstTapCoachText = this.add.text(135, 224, 'TAP TO UNWIND', {
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: '10px',
+        fontStyle: 'bold',
+        color: '#1C110C',
+        backgroundColor: '#FDE047',
+        padding: { x: 6, y: 3 },
+      });
+      this.firstTapCoachText.setOrigin(0.5, 0.5);
+      this.firstTapCoachText.setDepth(125);
+    }
+
     // 5. Interactive 2.5D spatial tilt pointer tracking (Pillar B: Toy/Object Spatial Inspection)
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       if (!this.spatialTiltEnabled) return;
@@ -269,6 +377,40 @@ export class ScrewJamScene extends Phaser.Scene {
     // 6. Initial occlusion pass and telemetry broadcast
     this.updateAllPinOcclusions();
     this.emitTelemetry();
+  }
+
+  public celebrateCanvasCallout(label: string, colorHex: string = '#FEF08A', addShake: boolean = false) {
+    this.spawnCallout(200, 128, label, colorHex);
+    if (addShake) {
+      this.addCameraTrauma(0.32);
+    }
+  }
+
+  private addCameraTrauma(amount: number) {
+    this.cameraTrauma = Math.min(1, this.cameraTrauma + amount);
+  }
+
+  private triggerHitstop(durationSec: number) {
+    this.hitstopSec = Math.max(this.hitstopSec, durationSec);
+  }
+
+  private spawnCallout(x: number, y: number, label: string, colorHex: string = '#FEF08A') {
+    for (let i = 0; i < this.calloutPool.length; i++) {
+      const c = this.calloutPool[i];
+      if (!c.active) {
+        c.active = true;
+        c.life = 0;
+        c.maxLife = 0.82;
+        c.startY = Math.max(48, Math.min(480, y - 18));
+        c.text.setText(label);
+        c.text.setColor(colorHex);
+        c.text.setPosition(Math.max(70, Math.min(330, x)), c.startY);
+        c.text.setScale(0.72);
+        c.text.setAlpha(1);
+        c.text.setVisible(true);
+        return;
+      }
+    }
   }
 
   public setXrayMode(enabled: boolean) {
@@ -312,11 +454,96 @@ export class ScrewJamScene extends Phaser.Scene {
     }
   }
 
+  public setActiveToolboxColors(colors: PinColor[]) {
+    this.activeToolboxColors = [...colors];
+    this.refreshIdleHintEvaluation(false);
+  }
+
+  public setIdleHintDelayMs(delayMs: number) {
+    this.idleHintDelayMs = Math.max(1500, Math.round(delayMs));
+    this.refreshIdleHintEvaluation(false);
+  }
+
+  public resetIdleTimer() {
+    this.lastActionTimestampMs = performance.now();
+    if (this.idleHintActive) {
+      this.idleHintActive = false;
+      for (const pin of this.pins.values()) {
+        if (!pin.removed) {
+          this.renderPinHead(pin);
+        }
+      }
+      this.callbacks.onIdleHintChanged?.(false, [], null);
+      this.emitTelemetry();
+    }
+  }
+
+  private refreshIdleHintEvaluation(allowActivate: boolean) {
+    const candidates: HintPinCandidate[] = [];
+    for (const pin of this.pins.values()) {
+      candidates.push({
+        id: pin.def.id,
+        color: pin.def.color,
+        layerIndex: pin.def.layerIndex,
+        occluded: pin.occluded,
+        removed: pin.removed,
+        isKeyPin: pin.def.isKeyPin,
+        lockedByKeyPinId: pin.def.lockedByKeyPinId,
+        chainedWithPinId: pin.def.chainedWithPinId,
+      });
+    }
+
+    const idleElapsedMs = Math.max(0, performance.now() - this.lastActionTimestampMs);
+    const evalRes = evaluateIdleMovableHints(
+      candidates,
+      this.removedPinIds,
+      this.frostMap,
+      idleElapsedMs,
+      this.activeToolboxColors,
+      this.idleHintDelayMs
+    );
+
+    this.movableHintPinIds = new Set(evalRes.movablePinIds);
+    this.preferredHintPinIds = new Set(evalRes.preferredMatchPinIds);
+    this.recommendedHintPinId = evalRes.recommendedPinId;
+
+    if (allowActivate && evalRes.idleHintActive && !this.idleHintActive) {
+      this.idleHintActive = true;
+      for (const pin of this.pins.values()) {
+        if (!pin.removed) {
+          this.renderPinHead(pin);
+        }
+      }
+      if (this.recommendedHintPinId) {
+        const recPin = this.pins.get(this.recommendedHintPinId);
+        if (recPin && !recPin.removed) {
+          this.spawnShockwave(recPin.container.x, recPin.container.y, 0xfbbf24, 10, 48, 0.42, 3.0);
+        }
+      }
+      this.callbacks.onIdleHintChanged?.(
+        true,
+        evalRes.movablePinIds,
+        evalRes.recommendedPinId
+      );
+      this.emitTelemetry();
+    } else if (!evalRes.idleHintActive && this.idleHintActive) {
+      this.idleHintActive = false;
+      for (const pin of this.pins.values()) {
+        if (!pin.removed) {
+          this.renderPinHead(pin);
+        }
+      }
+      this.callbacks.onIdleHintChanged?.(false, [], null);
+      this.emitTelemetry();
+    }
+  }
+
   /**
    * Competitive Feature 1B: Layer Explode Peek (2.5D Hold/Toggle Layer Separation)
    * Separates the 4 stacked layers outward so players can inspect hidden pins and overlaps.
    */
   public setExplodePeek(enabled: boolean) {
+    this.resetIdleTimer();
     this.explodePeek = enabled;
     this.explodeFactor = enabled ? 1 : 0;
     soundManager.playLayerExplode(enabled);
@@ -347,6 +574,7 @@ export class ScrewJamScene extends Phaser.Scene {
     nudgedPlates: number;
     direction: GravityNudgeDirection;
   } {
+    this.resetIdleTimer();
     this.nudgeDirection = direction;
     this.nudgePulseAlpha = 1;
     soundManager.playGravityNudge();
@@ -424,6 +652,80 @@ export class ScrewJamScene extends Phaser.Scene {
     return true;
   }
 
+  /**
+   * Wax Re-Stamp Undo: gently returns a buffered pin from the 5-Peg Brass Rack
+   * back onto its satin ribbon on the board and restores its Matter.js constraint.
+   */
+  public restoreBufferedPin(pinId: string): boolean {
+    const existingPin = this.pins.get(pinId);
+    if (!existingPin || !existingPin.removed) return false;
+
+    // Cancel any active flight animation targeting this pin's container
+    for (let i = this.flyingPins.length - 1; i >= 0; i--) {
+      if (this.flyingPins[i].container === existingPin.container) {
+        this.flyingPins.splice(i, 1);
+      }
+    }
+
+    this.removedPinIds.delete(pinId);
+
+    // Recreate pin container if it was destroyed after reaching the top rack
+    let restoredPin: RuntimePin;
+    if (!existingPin.container || !existingPin.container.scene) {
+      this.createPin(existingPin.def);
+      restoredPin = this.pins.get(pinId)!;
+    } else {
+      existingPin.removed = false;
+      existingPin.container.setPosition(existingPin.def.x, existingPin.def.y);
+      existingPin.container.setScale(1);
+      existingPin.container.setAngle(0);
+      existingPin.container.setAlpha(1);
+      existingPin.container.setDepth(existingPin.def.layerIndex * 10 + 6);
+      restoredPin = existingPin;
+    }
+
+    // Re-attach Matter.js constraints to any non-cleared plates this pin belonged to
+    for (const plateId of restoredPin.def.attachedPlateIds) {
+      const plate = this.plates.get(plateId);
+      if (!plate || plate.cleared) continue;
+
+      if (!plate.attachedPinIds.has(pinId)) {
+        plate.attachedPinIds.add(pinId);
+      }
+      if (!plate.constraints.has(pinId)) {
+        const dx = restoredPin.def.x - plate.body.position.x;
+        const dy = restoredPin.def.y - plate.body.position.y;
+        const constraint = this.matter.constraint.create({
+          bodyA: plate.body,
+          pointA: { x: dx, y: dy },
+          pointB: { x: restoredPin.def.x, y: restoredPin.def.y },
+          stiffness: 1,
+          length: 0,
+        });
+        this.matter.world.add(constraint);
+        plate.constraints.set(pinId, constraint);
+      }
+      this.updatePlatePhysicsMode(plate, true);
+    }
+
+    this.renderPinHead(restoredPin);
+    this.tweens.add({
+      targets: restoredPin.container,
+      scale: { from: 1.32, to: 1 },
+      duration: 210,
+      ease: 'Back.easeOut',
+    });
+
+    const colorEntry = PIN_COLORS[restoredPin.def.color] || PIN_COLORS.amber;
+    this.spawnShockwave(restoredPin.def.x, restoredPin.def.y, 0xfbbf24, 28, 8, 0.28, 2.8);
+    this.spawnParticles(restoredPin.def.x, restoredPin.def.y, colorEntry.numHex, 12, 'circle');
+
+    this.updateAllPinOcclusions();
+    this.resetIdleTimer();
+    this.emitTelemetry();
+    return true;
+  }
+
   private spawnShockwave(
     x: number,
     y: number,
@@ -485,23 +787,55 @@ export class ScrewJamScene extends Phaser.Scene {
     const themeSpec = TACTILE_THEMES[this.themeId] || TACTILE_THEMES.stained_glass;
     this.boardGraphics.clear();
 
-    // Outer cast-iron bezel shadow
-    this.boardGraphics.fillStyle(0x070a10, 0.92);
-    this.boardGraphics.fillRoundedRect(x - 4, y - 2, width + 8, height + 8, 20);
+    // Outer oiled-walnut desk tray shadow
+    this.boardGraphics.fillStyle(0x0b0705, 0.94);
+    this.boardGraphics.fillRoundedRect(x - 4, y - 2, width + 8, height + 8, 22);
 
-    // Theme-tuned tactile surface
+    // Warm espresso-walnut / imperial lacquer desk mat
     this.boardGraphics.fillStyle(themeSpec.boardTintHex, 0.98);
-    this.boardGraphics.fillRoundedRect(x, y, width, height, 16);
+    this.boardGraphics.fillRoundedRect(x, y, width, height, 18);
 
-    // Outer frame stroke
-    this.boardGraphics.lineStyle(2.5, 0x475569, 0.85);
-    this.boardGraphics.strokeRoundedRect(x, y, width, height, 16);
+    // Subtle recessed dark-velvet parcel table mat glow
+    this.boardGraphics.fillStyle(0x271915, 0.62);
+    this.boardGraphics.fillRoundedRect(x + 10, y + 10, width - 20, height - 34, 12);
 
-    // Inner recessed theme rule hairline
-    this.boardGraphics.lineStyle(1.2, themeSpec.frameStrokeHex, 0.3);
-    this.boardGraphics.strokeRoundedRect(x + 8, y + 8, width - 16, height - 16, 12);
+    // Centered Luxury Cream-Parchment Parcel Envelope Silhouette behind the ribbons
+    const envX = x + 32;
+    const envY = y + 66;
+    const envW = width - 64;
+    const envH = height - 134;
+    this.boardGraphics.fillStyle(0x0d0806, 0.45);
+    this.boardGraphics.fillRoundedRect(envX + 3, envY + 5, envW, envH, 14);
+    this.boardGraphics.fillStyle(0x30211a, 0.82);
+    this.boardGraphics.fillRoundedRect(envX, envY, envW, envH, 14);
+    this.boardGraphics.lineStyle(1.4, 0xd4a373, 0.28);
+    this.boardGraphics.strokeRoundedRect(envX, envY, envW, envH, 14);
+    // Subtle envelope diagonal folded flap seams
+    this.boardGraphics.lineStyle(1, 0xfde68a, 0.12);
+    this.boardGraphics.lineBetween(envX + 8, envY + 8, envX + envW * 0.5, envY + envH * 0.44);
+    this.boardGraphics.lineBetween(envX + envW - 8, envY + 8, envX + envW * 0.5, envY + envH * 0.44);
+    this.boardGraphics.lineBetween(envX + 8, envY + envH - 8, envX + envW * 0.5, envY + envH * 0.56);
+    this.boardGraphics.lineBetween(envX + envW - 8, envY + envH - 8, envX + envW * 0.5, envY + envH * 0.56);
 
-    // Corner mounting clasps/pins on the frame
+    // Subtle engraved Royal Post circular cancellation postmark in upper-right corner of envelope
+    const stampX = envX + envW - 34;
+    const stampY = envY + 32;
+    this.boardGraphics.lineStyle(1.1, 0xf59e0b, 0.24);
+    this.boardGraphics.strokeCircle(stampX, stampY, 17);
+    this.boardGraphics.strokeCircle(stampX, stampY, 12.5);
+    this.boardGraphics.lineBetween(stampX - 28, stampY - 4, stampX - 16, stampY - 4);
+    this.boardGraphics.lineBetween(stampX - 30, stampY, stampX - 17, stampY);
+    this.boardGraphics.lineBetween(stampX - 28, stampY + 4, stampX - 16, stampY + 4);
+
+    // Outer burnished mahogany-gold bezel stroke
+    this.boardGraphics.lineStyle(2.5, 0x6b442a, 0.92);
+    this.boardGraphics.strokeRoundedRect(x, y, width, height, 18);
+
+    // Inner gold-foil double hairline inlay
+    this.boardGraphics.lineStyle(1.3, themeSpec.frameStrokeHex, 0.45);
+    this.boardGraphics.strokeRoundedRect(x + 8, y + 8, width - 16, height - 16, 13);
+
+    // Corner engraved brass parcel rivets
     const corners = [
       { cx: x + 16, cy: y + 16 },
       { cx: x + width - 16, cy: y + 16 },
@@ -509,29 +843,29 @@ export class ScrewJamScene extends Phaser.Scene {
       { cx: x + width - 16, cy: y + height - 16 },
     ];
     for (const c of corners) {
-      this.boardGraphics.fillStyle(0x334155, 1);
-      this.boardGraphics.fillCircle(c.cx, c.cy, 5);
-      this.boardGraphics.lineStyle(1, themeSpec.frameStrokeHex, 0.7);
-      this.boardGraphics.strokeCircle(c.cx, c.cy, 5);
-      this.boardGraphics.fillStyle(0x0f172a, 1);
-      this.boardGraphics.fillCircle(c.cx, c.cy, 2);
+      this.boardGraphics.fillStyle(0x78350f, 1);
+      this.boardGraphics.fillCircle(c.cx, c.cy, 5.2);
+      this.boardGraphics.lineStyle(1.2, 0xfbbf24, 0.85);
+      this.boardGraphics.strokeCircle(c.cx, c.cy, 5.2);
+      this.boardGraphics.fillStyle(0xfef08a, 0.9);
+      this.boardGraphics.fillCircle(c.cx - 1.2, c.cy - 1.2, 1.5);
     }
 
-    // Tactile pegboard / embroidery / PCB grid
+    // Subtle brass pin-board eyelet perforations across the walnut mat
     for (let hx = x + 30; hx <= x + width - 30; hx += 30) {
-      for (let hy = y + 33; hy <= y + height - 30; hy += 30) {
-        this.boardGraphics.fillStyle(0x0b0f17, 0.95);
-        this.boardGraphics.fillCircle(hx, hy, 4.2);
-        this.boardGraphics.lineStyle(0.8, 0x263248, 0.7);
-        this.boardGraphics.strokeCircle(hx, hy, 4.5);
+      for (let hy = y + 33; hy <= y + height - 36; hy += 30) {
+        this.boardGraphics.fillStyle(0x110b09, 0.62);
+        this.boardGraphics.fillCircle(hx, hy, 3.1);
+        this.boardGraphics.lineStyle(0.7, 0x5c3a24, 0.36);
+        this.boardGraphics.strokeCircle(hx, hy, 3.6);
       }
     }
 
-    // Bottom drop-chute hazard hatching zone (where freed plates fall out)
+    // Bottom satin ribbon drop chute (where untied ribbons glide free)
     const chuteY = y + height - 22;
-    this.boardGraphics.fillStyle(0x0b0f17, 0.75);
-    this.boardGraphics.fillRoundedRect(x + 28, chuteY, width - 56, 12, 4);
-    this.boardGraphics.lineStyle(1, themeSpec.frameStrokeHex, 0.35);
+    this.boardGraphics.fillStyle(0x120b09, 0.85);
+    this.boardGraphics.fillRoundedRect(x + 28, chuteY, width - 56, 12, 5);
+    this.boardGraphics.lineStyle(1.1, 0xd97706, 0.45);
     for (let sx = x + 36; sx < x + width - 36; sx += 16) {
       this.boardGraphics.lineBetween(sx, chuteY + 2, sx + 6, chuteY + 10);
     }
@@ -702,31 +1036,28 @@ export class ScrewJamScene extends Phaser.Scene {
     const r = pin.radius;
 
     if (pin.occluded) {
-      // Rule 4: High-Craft Recessed Security Cage for Occluded Pins
-      g.fillStyle(0x060911, 0.92);
+      // Rule 4: Recessed Dark Bronze Seal Cage for Occluded Ribbons
+      g.fillStyle(0x110a08, 0.92);
       g.fillCircle(0, 2.5, r + 2.5);
 
-      // Dimmed inner pin core trapped behind steel cage
-      g.fillStyle(colorEntry.numHex, 0.36);
+      g.fillStyle(colorEntry.numHex, 0.34);
       g.fillCircle(0, 0, r - 1.5);
 
-      // Outer gunmetal lock ring + 4 cardinal security clamps
-      g.lineStyle(2.2, 0x64748b, 0.85);
+      // Antique bronze retaining ring + 4 cardinal clasps
+      g.lineStyle(2.2, 0x8c684a, 0.85);
       g.strokeCircle(0, 0, r);
       for (let a = 0; a < 4; a++) {
         const rad = (a * Math.PI) / 2;
-        const cx = Math.cos(rad) * r;
-        const cy = Math.sin(rad) * r;
-        g.fillStyle(0x94a3b8, 0.9);
-        g.fillCircle(cx, cy, 2.2);
+        g.fillStyle(0xb68b60, 0.9);
+        g.fillCircle(Math.cos(rad) * r, Math.sin(rad) * r, 2.1);
       }
 
-      // High-contrast recessed X-bar lock + ruby warning core
-      g.lineStyle(2.2, 0xfda4af, 0.75);
-      g.lineBetween(-r * 0.44, -r * 0.44, r * 0.44, r * 0.44);
-      g.lineBetween(-r * 0.44, r * 0.44, r * 0.44, -r * 0.44);
-      g.fillStyle(0xf43f5e, 0.9);
-      g.fillCircle(0, 0, 2.8);
+      // High-contrast crossed ribbon pin-lock indicator
+      g.lineStyle(2.1, 0xfda4af, 0.78);
+      g.lineBetween(-r * 0.42, -r * 0.42, r * 0.42, r * 0.42);
+      g.lineBetween(-r * 0.42, r * 0.42, r * 0.42, -r * 0.42);
+      g.fillStyle(0xe11d48, 0.9);
+      g.fillCircle(0, 0, 2.6);
 
       if (this.xrayMode || this.explodePeek) {
         pin.badgeText.setText(`L${pin.def.layerIndex}·${Math.round(pin.overlapRatio * 100)}%`);
@@ -735,113 +1066,86 @@ export class ScrewJamScene extends Phaser.Scene {
         pin.badgeText.setVisible(false);
       }
     } else if (this.themeId === 'stained_glass') {
-      // 3rd-Gen Theme 1: Scalloped 8-Prong Brass Cathedral Clasp + Faceted Jewel Cabochon
-      g.fillStyle(0x000000, 0.52);
-      g.fillCircle(1.5, 4, r + 2);
+      // Theme 1 (Royal Wax): 3D Glossy Lacquered Wax Seal Medallion with Scalloped Drip Rim
+      g.fillStyle(0x0b0605, 0.58);
+      g.fillCircle(1.5, 4.2, r + 2.2);
 
-      // Outer antique gold bezel ring
-      g.fillStyle(0xd97706, 1);
-      g.fillCircle(0, 1, r + 1);
-      g.fillStyle(0xfbbf24, 1);
-      g.fillCircle(0, 0, r + 0.5);
-
-      // 8 radial jewelers' filigree prongs around perimeter
+      // Organic scalloped poured-wax edge nodules
       for (let i = 0; i < 8; i++) {
         const a = (i * Math.PI) / 4;
-        const px = Math.cos(a) * (r + 0.5);
-        const py = Math.sin(a) * (r + 0.5);
-        g.fillStyle(0xfef08a, 0.95);
-        g.fillCircle(px, py, 2);
+        const dripR = i % 2 === 0 ? r + 0.6 : r - 0.3;
+        g.fillStyle(colorEntry.numHex, 0.96);
+        g.fillCircle(Math.cos(a) * (dripR - 3.2), Math.sin(a) * (dripR - 3.2), 4.6);
       }
 
-      // Deep jewel cabochon base + inner bright facet table
-      g.fillStyle(colorEntry.numHex, 1);
-      g.fillCircle(0, 0, r - 2.2);
-
-      // Inner diamond crystal facet lines
-      g.lineStyle(1.2, 0xffffff, 0.45);
-      g.strokeCircle(0, 0, r - 5.2);
-      g.lineBetween(-r + 4, 0, r - 4, 0);
-      g.lineBetween(0, -r + 4, 0, r - 4);
-
-      // 4-point cathedral specular star glint
-      g.fillStyle(0xffffff, 0.95);
-      g.fillCircle(-3.2, -3.2, 2.6);
-      g.lineStyle(1.4, 0xffffff, 0.9);
-      g.lineBetween(-6.5, -3.2, 0.2, -3.2);
-      g.lineBetween(-3.2, -6.5, -3.2, 0.2);
-      g.fillStyle(0xfef08a, 0.75);
-      g.fillCircle(3.2, 3.2, 1.5);
-    } else if (this.themeId === 'knit_yarn') {
-      // 3rd-Gen Theme 2: Mother-of-Pearl Haberdashery Pin + Wrapped Embroidery Thread Loop
-      g.fillStyle(0x000000, 0.48);
-      g.fillCircle(1.5, 4.2, r + 1.5);
-
-      // Stitched embroidery thread loop figure-8 tail underneath collar
-      g.lineStyle(2.2, colorEntry.numHex, 0.95);
-      g.strokeCircle(-4.5, 4.5, 4.2);
-      g.strokeCircle(4.5, 4.5, 4.2);
-
-      // Polished silver needle collar
-      g.fillStyle(0xe2e8f0, 0.98);
-      g.fillCircle(0, 2.2, r - 2.5);
-
-      // Glossy spherical pearl pin head
+      // Main lacquered wax disc + raised stamped outer lip
       g.fillStyle(colorEntry.numHex, 1);
       g.fillCircle(0, 0, r);
+      g.lineStyle(2, 0xfde68a, 0.78);
+      g.strokeCircle(0, 0, r - 2.6);
 
-      // Outer satin lustre ring + inner pearl halo
-      g.lineStyle(2, 0xffffff, 0.72);
-      g.strokeCircle(0, 0, r - 1.4);
-      g.lineStyle(1, 0xffffff, 0.35);
-      g.strokeCircle(0, -1, r - 4.2);
+      // Embossed Royal Post Fleur-de-Lis / Crown Crest in warm guild gold
+      g.fillStyle(0xfef08a, 0.92);
+      g.fillTriangle(-3.5, 2.5, 3.5, 2.5, 0, -4.5);
+      g.fillCircle(-3.6, 0.5, 1.5);
+      g.fillCircle(3.6, 0.5, 1.5);
 
-      // Dual curved pearl specular highlights
-      g.fillStyle(0xffffff, 0.94);
-      g.fillCircle(-4, -4, 3.4);
-      g.fillStyle(0xffffff, 0.55);
-      g.fillCircle(-1.2, -5.8, 1.6);
-      g.fillStyle(0xffffff, 0.48);
-      g.fillCircle(3.8, 3.8, 1.8);
+      // Glossy warm candlelight specular crescent
+      g.fillStyle(0xffffff, 0.85);
+      g.fillCircle(-3.8, -3.8, 2.5);
+      g.fillStyle(0xfef08a, 0.6);
+      g.fillCircle(3.5, 3.5, 1.4);
+    } else if (this.themeId === 'knit_yarn') {
+      // Theme 2 (Kyoto Silk): Gilded Silk Knot Clasp & Mother-of-Pearl Button
+      g.fillStyle(0x0b0605, 0.5);
+      g.fillCircle(1.5, 4.2, r + 1.8);
+
+      // Braided silk mizuhiki loop bow beneath button
+      g.lineStyle(2.2, 0xfbbf24, 0.92);
+      g.strokeCircle(-4.6, 4.2, 4.2);
+      g.strokeCircle(4.6, 4.2, 4.2);
+
+      // Lacquered silk button body + gold rim
+      g.fillStyle(colorEntry.numHex, 1);
+      g.fillCircle(0, 0, r);
+      g.lineStyle(1.8, 0xfef08a, 0.85);
+      g.strokeCircle(0, 0, r - 1.5);
+
+      // Mother-of-pearl inner shine
+      g.fillStyle(0xffffff, 0.92);
+      g.fillCircle(-3.8, -3.8, 3.1);
+      g.fillStyle(0xfef08a, 0.65);
+      g.fillCircle(3.2, 3.2, 1.6);
     } else {
-      // 3rd-Gen Theme 3: Precision CNC Anodized Chrono Hex-Cap Fastener
-      g.fillStyle(0x000000, 0.52);
-      g.fillCircle(1.5, 4, r + 1.8);
+      // Theme 3 (Venetian Velvet): Engraved Antique Brass Signet Stud with Enamel Dome
+      g.fillStyle(0x0b0605, 0.54);
+      g.fillCircle(1.5, 4, r + 2);
 
-      // Brushed titanium base flange with 6 knurled perimeter notches
-      g.fillStyle(0x334155, 0.98);
-      g.fillCircle(0, 1.5, r + 1);
+      // Burnished brass bezel ring with 6 milgrain beads
+      g.fillStyle(0xb45309, 1);
+      g.fillCircle(0, 1.2, r + 1.2);
+      g.fillStyle(0xf59e0b, 1);
+      g.fillCircle(0, 0, r + 0.5);
       for (let i = 0; i < 6; i++) {
         const a = (i * Math.PI) / 3;
-        g.fillStyle(0x94a3b8, 0.9);
-        g.fillCircle(Math.cos(a) * r, Math.sin(a) * r, 2.1);
+        g.fillStyle(0xfef08a, 0.95);
+        g.fillCircle(Math.cos(a) * r, Math.sin(a) * r, 1.9);
       }
 
-      // Anodized color cap
+      // Recessed enamel color medallion
       g.fillStyle(colorEntry.numHex, 1);
-      g.fillCircle(0, 0, r - 1);
+      g.fillCircle(0, 0, r - 2.4);
+      g.lineStyle(1.4, 0xfef08a, 0.72);
+      g.strokeCircle(0, 0, r - 5);
 
-      // Gold watchmaker escapement ring
-      g.lineStyle(2, 0xfef08a, 0.8);
-      g.strokeCircle(0, 0, r - 2.4);
-
-      // Recessed precision tri-wing socket + center jewel bearing
-      g.fillStyle(0x0f172a, 0.9);
-      g.fillCircle(0, 0, 4.2);
-      g.lineStyle(2.4, 0x0f172a, 0.92);
-      for (let i = 0; i < 3; i++) {
-        const a = (i * Math.PI * 2) / 3 - Math.PI / 2;
-        g.lineBetween(0, 0, Math.cos(a) * (r * 0.54), Math.sin(a) * (r * 0.54));
-      }
-      g.fillStyle(0xfbbf24, 1);
-      g.fillCircle(0, 0, 1.8);
-
-      // Crisp CNC chamfer highlight
-      g.fillStyle(0xffffff, 0.82);
-      g.fillCircle(-3.6, -3.6, 2.3);
+      // Center gilded compass star
+      g.fillStyle(0xfef08a, 0.95);
+      g.fillCircle(0, 0, 2.2);
+      g.fillStyle(0xffffff, 0.84);
+      g.fillCircle(-3.4, -3.4, 2.2);
     }
 
-    // Toolsmith Finial Skin Center Emblem & Star-Keyhole Clasp / Padlock / Frost / Chain Overlays
+    // Wax Seal Stamp Skin + Interactive Parcel Hazard Overlays (WAX×2, SIGNET, LOCK, BOW)
     const isPadlocked = Boolean(
       pin.def.lockedByKeyPinId && !this.removedPinIds.has(pin.def.lockedByKeyPinId)
     );
@@ -856,75 +1160,75 @@ export class ScrewJamScene extends Phaser.Scene {
       g.lineStyle(1.8, finialSpec.bezelHex, 0.9);
       g.strokeCircle(0, 0, r + 2.2);
       g.fillStyle(finialSpec.coreHex, 0.95);
-      g.fillCircle(0, 0, 2.6);
+      g.fillCircle(0, 0, 2.5);
     }
 
     if (remainingFrost > 0) {
-      // Tier-2 Hazard 1: Translucent Faceted Crystal Frost Dome (ICE×2 / ICE×1)
-      g.fillStyle(0x38bdf8, remainingFrost >= 2 ? 0.56 : 0.35);
-      g.fillCircle(0, 0, r + 3.2);
-      g.lineStyle(remainingFrost >= 2 ? 2.5 : 1.8, 0xe0f2fe, 0.96);
-      g.strokeCircle(0, 0, r + 3.2);
-      // 6 Crystal Frost Facet Spikes / Crack Lines
-      for (let i = 0; i < 6; i++) {
-        const a = (i * Math.PI) / 3 + (remainingFrost === 1 ? 0.3 : 0);
-        g.lineStyle(1.5, 0xffffff, 0.88);
+      // Thick Hardened Sealing Wax Coat (WAX×2 -> cracks to WAX×1 -> shatters)
+      g.fillStyle(0x9f1239, remainingFrost >= 2 ? 0.68 : 0.42);
+      g.fillCircle(0, 0, r + 3.6);
+      g.lineStyle(remainingFrost >= 2 ? 2.6 : 1.8, 0xfda4af, 0.95);
+      g.strokeCircle(0, 0, r + 3.4);
+      // Fracture crack lines on hardened wax crust
+      for (let i = 0; i < 5; i++) {
+        const a = (i * Math.PI * 2) / 5 + (remainingFrost === 1 ? 0.35 : 0);
+        g.lineStyle(1.5, 0xfef08a, remainingFrost === 1 ? 0.95 : 0.7);
         g.lineBetween(
-          Math.cos(a) * (r * 0.32),
-          Math.sin(a) * (r * 0.32),
-          Math.cos(a) * (r + 2.6),
-          Math.sin(a) * (r + 2.6)
+          Math.cos(a) * (r * 0.28),
+          Math.sin(a) * (r * 0.28),
+          Math.cos(a) * (r + 2.8),
+          Math.sin(a) * (r + 2.8)
         );
       }
-      pin.badgeText.setText(`ICE×${remainingFrost}`);
+      pin.badgeText.setText(`WAX×${remainingFrost}`);
       pin.badgeText.setVisible(true);
     } else if (isPadlocked) {
-      // 3D Brass Clockwork Padlock Collar & Keyhole Slot
+      // Royal Crest Lock Collar (LOCK)
       g.lineStyle(2.6, 0xf59e0b, 0.96);
       g.strokeCircle(0, 0, r + 2.8);
-      g.fillStyle(0x141824, 0.88);
+      g.fillStyle(0x2a1410, 0.92);
       g.fillRoundedRect(-7, -5, 14, 11, 3);
       g.lineStyle(1.8, 0xfbbf24, 1);
       g.strokeRoundedRect(-7, -5, 14, 11, 3);
-      // Padlock Shackle Arc above
       g.lineStyle(2.2, 0xfde047, 1);
       g.beginPath();
       g.arc(0, -5, 4.5, Math.PI, 0, false);
       g.strokePath();
-      // Keyhole center dot
       g.fillStyle(0xfef08a, 1);
       g.fillCircle(0, -0.5, 1.8);
       pin.badgeText.setText('LOCK');
       pin.badgeText.setVisible(true);
     } else if (isKeyPin) {
-      // 3D Golden Star-Keyhole Clasp Crown Emblem
-      g.lineStyle(2.4, 0xffe033, 0.98);
+      // Golden Royal Signet Ring Clasp (SIGNET)
+      g.lineStyle(2.5, 0xffe033, 0.98);
       g.strokeCircle(0, 0, r + 3.2);
-      // 4 Golden Star Crown Points
       for (let i = 0; i < 4; i++) {
         const a = (i * Math.PI) / 2 + Math.PI / 4;
         g.fillStyle(0xffe033, 1);
         g.fillCircle(Math.cos(a) * (r + 3.2), Math.sin(a) * (r + 3.2), 2.4);
       }
-      // Center Golden Key Emblem
-      g.fillStyle(0x141824, 0.82);
-      g.fillCircle(0, 0, 5.2);
+      g.fillStyle(0x2a1410, 0.88);
+      g.fillCircle(0, 0, 5.4);
       g.fillStyle(0xffd700, 1);
       g.fillCircle(0, -1.2, 3.2);
       g.fillRect(-1.2, 1, 2.4, 3.8);
-      pin.badgeText.setText('KEY');
+      pin.badgeText.setText('SIGNET');
       pin.badgeText.setVisible(true);
     } else if (isChained) {
-      // Tier-2 Hazard 2: Twin Brass Chain-Link Shackle Collar (CHAIN)
-      g.lineStyle(2.4, 0xfbbf24, 0.96);
+      // Tied Twin Satin Bow Knot Collar (BOW)
+      g.lineStyle(2.4, 0xfde68a, 0.96);
       g.strokeCircle(0, 0, r + 2.8);
-      g.fillStyle(0xd97706, 1);
-      g.fillCircle(-r - 1.5, 0, 2.6);
-      g.fillCircle(r + 1.5, 0, 2.6);
-      pin.badgeText.setText('CHAIN');
+      g.fillStyle(0xf59e0b, 1);
+      g.fillCircle(-r - 1.8, 0, 3);
+      g.fillCircle(r + 1.8, 0, 3);
+      pin.badgeText.setText('BOW');
       pin.badgeText.setVisible(true);
     } else if (!pin.occluded) {
-      if (this.xrayMode || this.explodePeek) {
+      if (this.idleHintActive && this.movableHintPinIds.has(pin.def.id)) {
+        const isPref = this.preferredHintPinIds.has(pin.def.id);
+        pin.badgeText.setText(isPref ? 'MATCH' : 'FREE');
+        pin.badgeText.setVisible(true);
+      } else if (this.xrayMode || this.explodePeek) {
         pin.badgeText.setText(`L${pin.def.layerIndex}`);
         pin.badgeText.setVisible(true);
       } else {
@@ -970,6 +1274,7 @@ export class ScrewJamScene extends Phaser.Scene {
         changed = true;
       }
     }
+    this.refreshIdleHintEvaluation(false);
     if (changed) {
       this.emitTelemetry();
     }
@@ -977,6 +1282,7 @@ export class ScrewJamScene extends Phaser.Scene {
 
   private handlePinTap(pin: RuntimePin) {
     if (pin.removed || this.isInteracting) return;
+    this.resetIdleTimer();
 
     const { occluded, overlapRatio } = this.checkPinOcclusion(pin);
     pin.occluded = occluded;
@@ -988,6 +1294,7 @@ export class ScrewJamScene extends Phaser.Scene {
       soundManager.playBlockedThud();
       this.spawnParticles(pin.def.x, pin.def.y, 0xf43f5e, 8, 'shard');
       this.spawnShockwave(pin.def.x, pin.def.y, 0xf43f5e, 8, 34, 0.26, 2.5);
+      this.spawnCallout(pin.def.x, pin.def.y, 'TUCKED', '#FDA4AF');
 
       // Highlight the upper-layer plates that are physically occluding this pin
       for (const plate of this.plates.values()) {
@@ -1132,6 +1439,10 @@ export class ScrewJamScene extends Phaser.Scene {
       this.frostMap
     );
 
+    if (this.firstTapCoachText) {
+      this.firstTapCoachText.setVisible(false);
+    }
+
     pin.removed = true;
     this.removedPinIds.add(pin.def.id);
     haptics.pinPull();
@@ -1158,7 +1469,7 @@ export class ScrewJamScene extends Phaser.Scene {
       2.8
     );
 
-    // Crack or shatter Crystal Frost Caps (ICE) on sibling pins sharing the same plate!
+    // Crack or shatter Hardened Sealing Wax (WAX×2 -> WAX×1 -> Shatter) on sibling pins!
     const frostUpdate = decrementFrostForSharedPlatePins(
       pin.def.id,
       this.levelConfig.pins,
@@ -1167,13 +1478,26 @@ export class ScrewJamScene extends Phaser.Scene {
     );
     this.frostMap = frostUpdate.nextFrostMap;
     if (frostUpdate.crackedPinIds.length > 0 || frostUpdate.shatteredPinIds.length > 0) {
-      soundManager.playFrostCrackChime(frostUpdate.shatteredPinIds.length > 0);
+      const didShatter = frostUpdate.shatteredPinIds.length > 0;
+      soundManager.playFrostCrackChime(didShatter);
+      if (didShatter) {
+        this.triggerHitstop(0.045);
+        this.addCameraTrauma(0.45);
+      } else {
+        this.addCameraTrauma(0.2);
+      }
       for (const pid of [...frostUpdate.crackedPinIds, ...frostUpdate.shatteredPinIds]) {
         const targetPin = this.pins.get(pid);
         if (targetPin && !targetPin.removed) {
           this.renderPinHead(targetPin);
-          this.spawnParticles(targetPin.def.x, targetPin.def.y, 0x7dd3fc, 16, 'shard');
-          this.spawnShockwave(targetPin.def.x, targetPin.def.y, 0x38bdf8, 10, 46, 0.34, 3.0);
+          this.spawnParticles(targetPin.def.x, targetPin.def.y, didShatter ? 0xfda4af : 0xfbbf24, 18, 'shard');
+          this.spawnShockwave(targetPin.def.x, targetPin.def.y, 0xfbbf24, 10, 48, 0.34, 3.0);
+          this.spawnCallout(
+            targetPin.def.x,
+            targetPin.def.y,
+            didShatter ? `SHATTER +${frostUpdate.bonusBolts}` : 'WAX CRACK!',
+            didShatter ? '#FDE047' : '#FDA4AF'
+          );
           this.tweens.add({
             targets: targetPin.container,
             scale: 1.2,
@@ -1190,15 +1514,23 @@ export class ScrewJamScene extends Phaser.Scene {
       );
     }
 
-    // If this pin is a Golden Star-Key Clasp, unlock its linked Padlocked Pins with a golden burst!
+    // If this pin is a Golden Signet Seal, unlock its linked Crest Locks with hitstop & golden burst!
     if (lockEval.isKeyPin && lockEval.unlockedPinIds.length > 0) {
       soundManager.playKeyUnlockChime();
+      this.triggerHitstop(0.045);
+      this.addCameraTrauma(0.42);
       for (const unlockedId of lockEval.unlockedPinIds) {
         const targetLockedPin = this.pins.get(unlockedId);
         if (targetLockedPin && !targetLockedPin.removed) {
           this.renderPinHead(targetLockedPin);
-          this.spawnParticles(targetLockedPin.def.x, targetLockedPin.def.y, 0xffe033, 18, 'shard');
-          this.spawnShockwave(targetLockedPin.def.x, targetLockedPin.def.y, 0xffe033, 12, 52, 0.38, 3.2);
+          this.spawnParticles(targetLockedPin.def.x, targetLockedPin.def.y, 0xffe033, 20, 'shard');
+          this.spawnShockwave(targetLockedPin.def.x, targetLockedPin.def.y, 0xffe033, 12, 54, 0.38, 3.2);
+          this.spawnCallout(
+            targetLockedPin.def.x,
+            targetLockedPin.def.y,
+            `SIGNET +${lockEval.keyBonusBolts}`,
+            '#FEF08A'
+          );
           this.tweens.add({
             targets: targetLockedPin.container,
             scale: 1.22,
@@ -1251,11 +1583,19 @@ export class ScrewJamScene extends Phaser.Scene {
       trailTimer: 0,
     });
 
-    // If this pin has an active Twin Brass Chain-Link partner, auto-pull the twin simultaneously!
+    // If this pin has an active Tied Satin Bow partner, auto-pull the twin simultaneously!
     if (!isChainPartnerPull && chainEval.isChained && chainEval.partnerPinId) {
       const partnerPin = this.pins.get(chainEval.partnerPinId);
       if (partnerPin && !partnerPin.removed) {
         soundManager.playChainReleaseChime();
+        this.triggerHitstop(0.04);
+        this.addCameraTrauma(0.38);
+        this.spawnCallout(
+          (startX + partnerPin.def.x) * 0.5,
+          (startY + partnerPin.def.y) * 0.5,
+          `TWIN BOW +${chainEval.chainBonusBolts}`,
+          '#6EE7B7'
+        );
         this.pullPin(partnerPin, true);
         this.callbacks.onChainDoublePulled?.(
           pin.def.id,
@@ -1294,7 +1634,9 @@ export class ScrewJamScene extends Phaser.Scene {
     } else if (physicsMode.mode === 'freefall') {
       if (!isInitial) {
         haptics.plateRelease();
+        this.addCameraTrauma(0.34);
         const colorEntry = PIN_COLORS[plate.def.color] || PIN_COLORS.amber;
+        this.spawnCallout(plate.body.position.x, plate.body.position.y, 'RIBBON FREE +15', '#FEF08A');
         this.spawnShockwave(
           plate.body.position.x,
           plate.body.position.y,
@@ -1347,6 +1689,9 @@ export class ScrewJamScene extends Phaser.Scene {
       plates: plateItems,
       remainingPins,
       occludedPins,
+      movablePins: this.movableHintPinIds.size,
+      idleHintActive: this.idleHintActive,
+      hintedPinIds: Array.from(this.movableHintPinIds),
       pendulumPlates,
       clearedPlates,
       totalPlates: plateItems.length,
@@ -1356,6 +1701,59 @@ export class ScrewJamScene extends Phaser.Scene {
   update(_time: number, delta: number) {
     const dt = Math.min(delta / 1000, 0.05);
     this.elapsedSec += dt;
+
+    // Decaying trauma^2 micro-camera shake (always ticks smoothly in real dt)
+    if (this.cameraTrauma > 0.005) {
+      const shake = this.cameraTrauma * this.cameraTrauma * 5.2;
+      this.cameras.main.scrollX = (Math.sin(this.elapsedSec * 78) * 0.7 + (Math.random() - 0.5) * 0.6) * shake;
+      this.cameras.main.scrollY = (Math.cos(this.elapsedSec * 64) * 0.7 + (Math.random() - 0.5) * 0.6) * shake;
+      this.cameraTrauma = Math.max(0, this.cameraTrauma - dt * 2.6);
+    } else if (this.cameraTrauma > 0) {
+      this.cameraTrauma = 0;
+      this.cameras.main.scrollX = 0;
+      this.cameras.main.scrollY = 0;
+    }
+
+    // Update pooled floating canvas callouts
+    for (let i = 0; i < this.calloutPool.length; i++) {
+      const c = this.calloutPool[i];
+      if (!c.active) continue;
+      c.life += dt;
+      if (c.life >= c.maxLife) {
+        c.active = false;
+        c.text.setVisible(false);
+        continue;
+      }
+      const p = c.life / c.maxLife;
+      const easeOut = 1 - Math.pow(1 - p, 3);
+      c.text.setY(c.startY - easeOut * 34);
+      const scale = p < 0.18 ? 0.72 + (p / 0.18) * 0.42 : 1.14 - (p - 0.18) * 0.22;
+      c.text.setScale(scale);
+      c.text.setAlpha(p > 0.65 ? Math.max(0, 1 - (p - 0.65) / 0.35) : 1);
+    }
+
+    // Animate Parcel 1 first-tap diegetic coach cleanly
+    if (this.firstTapCoachText && this.firstTapCoachText.visible) {
+      const pin4 = this.pins.get('l1-pin-4');
+      if (pin4 && !pin4.removed && this.removedPinIds.size === 0) {
+        const bob = Math.sin(this.elapsedSec * 4.5) * 3.5;
+        this.firstTapCoachText.setPosition(pin4.container.x + 8, pin4.container.y - 34 + bob);
+      } else {
+        this.firstTapCoachText.setVisible(false);
+      }
+    }
+
+    // Brief sim-level hitstop freeze on heavy wax breaks & signet unlocks
+    if (this.hitstopSec > 0) {
+      this.hitstopSec = Math.max(0, this.hitstopSec - dt);
+      this.updateAndRenderParticles(dt);
+      return;
+    }
+
+    // 5-Second Idle Visual Hint Timer (tracks wall-clock milliseconds via performance.now())
+    if (!this.levelCompletedTriggered) {
+      this.refreshIdleHintEvaluation(true);
+    }
 
     // Smoothly interpolate explodeFactor towards target
     const targetExplode = this.explodePeek ? 1 : 0;
@@ -1438,7 +1836,7 @@ export class ScrewJamScene extends Phaser.Scene {
       }
     }
 
-    // Update pooled particles + shockwave rings + kinetic shockwave overlay
+    // Update pooled particles + shockwave rings + ambient candlelight motes + 5s idle hint halos
     this.updateAndRenderParticles(dt);
 
     // Periodically re-evaluate occlusions as pendulum plates swing
@@ -1450,7 +1848,23 @@ export class ScrewJamScene extends Phaser.Scene {
   private updateAndRenderParticles(dt: number) {
     this.particleGraphics.clear();
 
-    // Render 2.5D Taut Brass Watchmaker Chain Links between active Twin Chain-Link Clasps (CHAIN)
+    // Gentle Ambient Candlelight Gold Dust Motes drifting over the oiled walnut desk
+    for (let i = 0; i < this.ambientMotes.length; i++) {
+      const m = this.ambientMotes[i];
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      if (m.y < 36) {
+        m.y = 508;
+        m.x = 34 + ((i * 67 + Math.round(this.elapsedSec * 19)) % 332);
+      }
+      if (m.x < 30) m.x = 368;
+      if (m.x > 370) m.x = 32;
+      const flicker = 0.14 + 0.18 * (0.5 + 0.5 * Math.sin(this.elapsedSec * 2.2 + m.phase));
+      this.particleGraphics.fillStyle(0xfef08a, flicker);
+      this.particleGraphics.fillCircle(m.x, m.y, m.radius);
+    }
+
+    // Render Tied Gold-Threaded Satin Bow Cord between paired BOW seals
     const drawnPairs = new Set<string>();
     for (const pin of this.pins.values()) {
       if (pin.removed || !pin.def.chainedWithPinId) continue;
@@ -1465,20 +1879,81 @@ export class ScrewJamScene extends Phaser.Scene {
       const x2 = partner.container.x;
       const y2 = partner.container.y;
 
-      // Shadowed brass cable under-stroke + bright gold link chain
-      this.particleGraphics.lineStyle(5.2, 0x141824, 0.72);
-      this.particleGraphics.lineBetween(x1, y1 + 2, x2, y2 + 2);
-      this.particleGraphics.lineStyle(2.6, 0xfbbf24, 0.92);
+      // Rich silk shadow + braided crimson-gold ribbon tether
+      this.particleGraphics.lineStyle(6.2, 0x1a0c0a, 0.78);
+      this.particleGraphics.lineBetween(x1, y1 + 2.5, x2, y2 + 2.5);
+      this.particleGraphics.lineStyle(3.8, 0xe11d48, 0.94);
+      this.particleGraphics.lineBetween(x1, y1, x2, y2);
+      this.particleGraphics.lineStyle(1.4, 0xfef08a, 0.95);
       this.particleGraphics.lineBetween(x1, y1, x2, y2);
 
-      // Discrete brass chain links along the span
-      const steps = 7;
-      for (let s = 1; s < steps; s++) {
-        const t = s / steps;
-        const lx = x1 + (x2 - x1) * t;
-        const ly = y1 + (y2 - y1) * t + Math.sin(t * Math.PI) * 3.5;
-        this.particleGraphics.fillStyle(s % 2 === 0 ? 0xfef08a : 0xd97706, 0.95);
-        this.particleGraphics.fillCircle(lx, ly, 2.8);
+      // Center satin bow knot medallion
+      const mx = (x1 + x2) * 0.5;
+      const my = (y1 + y2) * 0.5;
+      this.particleGraphics.fillStyle(0xf59e0b, 0.98);
+      this.particleGraphics.fillCircle(mx - 5, my, 3.6);
+      this.particleGraphics.fillCircle(mx + 5, my, 3.6);
+      this.particleGraphics.fillStyle(0xfef08a, 1);
+      this.particleGraphics.fillCircle(mx, my, 3.2);
+    }
+
+    // Render 5-Second Idle Visual Hint System: Pulsing 2.5D Halos & Compass Reticles on Movable (Unoccluded) Pins
+    if (this.idleHintActive && this.movableHintPinIds.size > 0) {
+      const pulse = 0.5 + 0.5 * Math.sin(this.elapsedSec * 6.5);
+      for (const pinId of this.movableHintPinIds) {
+        const pin = this.pins.get(pinId);
+        if (!pin || pin.removed || pin.occluded) continue;
+
+        const px = pin.container.x;
+        const py = pin.container.y;
+        const r = pin.radius;
+        const isPreferred = this.preferredHintPinIds.has(pinId);
+        const isRecommended = this.recommendedHintPinId === pinId;
+
+        const primaryHaloHex = isPreferred ? 0xfbbf24 : 0x10b981;
+        const innerRingHex = isPreferred ? 0xfef08a : 0x6ee7b7;
+
+        // 1. Expanding outer sonar hint aura
+        const outerRadius = r + 5.5 + pulse * 6.5;
+        const outerAlpha = (0.86 - pulse * 0.48) * (isPreferred ? 1 : 0.85);
+        this.particleGraphics.lineStyle(isPreferred ? 2.8 : 2.2, primaryHaloHex, outerAlpha);
+        this.particleGraphics.strokeCircle(px, py, outerRadius);
+
+        // 2. Crisp inner target collar
+        this.particleGraphics.lineStyle(2.2, innerRingHex, 0.94);
+        this.particleGraphics.strokeCircle(px, py, r + 3.4);
+
+        // 3. 4 rotating compass diamond pips around circumference (non-hue-only geometric affordance)
+        for (let k = 0; k < 4; k++) {
+          const theta = this.elapsedSec * 2.1 + (k * Math.PI) / 2;
+          const tx = px + Math.cos(theta) * (r + 4.2);
+          const ty = py + Math.sin(theta) * (r + 4.2);
+          this.particleGraphics.fillStyle(innerRingHex, 0.96);
+          this.particleGraphics.fillCircle(tx, ty, isPreferred ? 2.4 : 1.9);
+        }
+
+        // 4. Bouncing golden target chevron above recommended / crate-matching movable pins
+        if (isPreferred || isRecommended) {
+          const chevronY = py - r - 18 - pulse * 3.5;
+          this.particleGraphics.fillStyle(0xfbbf24, 0.98);
+          this.particleGraphics.fillTriangle(
+            px - 5.5,
+            chevronY - 5,
+            px + 5.5,
+            chevronY - 5,
+            px,
+            chevronY + 2
+          );
+          this.particleGraphics.lineStyle(1.2, 0x0f172a, 0.95);
+          this.particleGraphics.strokeTriangle(
+            px - 5.5,
+            chevronY - 5,
+            px + 5.5,
+            chevronY - 5,
+            px,
+            chevronY + 2
+          );
+        }
       }
     }
 
@@ -1557,9 +2032,9 @@ export class ScrewJamScene extends Phaser.Scene {
 
     const halfW = width / 2;
     const halfH = height / 2;
-    const radius = Math.min(16, halfH);
+    const radius = Math.min(14, halfH);
 
-    // Pillar B + Feature 1B: 2.5D Spatial Depth Parallax + Layer Explode Peek offset per layer (0..3)
+    // 2.5D Spatial Depth Parallax + Candlelight Layer Explode offset (L0..L3)
     const explodeOffset = computeLayerExplodeOffset(
       layerIndex,
       this.explodeFactor,
@@ -1570,11 +2045,10 @@ export class ScrewJamScene extends Phaser.Scene {
     const layerParallaxX = explodeOffset.offsetX;
     const layerParallaxY = explodeOffset.offsetY;
 
-    // When Layer Explode Peek is active, draw a CAD assembly tether line from true position to exploded plate position
     if (this.explodeFactor > 0.05) {
-      g.lineStyle(1.5, 0x38bdf8, 0.65 * this.explodeFactor);
+      g.lineStyle(1.5, 0xfbbf24, 0.65 * this.explodeFactor);
       g.lineBetween(position.x, position.y, position.x + layerParallaxX, position.y + layerParallaxY);
-      g.fillStyle(0x38bdf8, 0.8 * this.explodeFactor);
+      g.fillStyle(0xfef08a, 0.85 * this.explodeFactor);
       g.fillCircle(position.x, position.y, 3);
     }
 
@@ -1582,129 +2056,113 @@ export class ScrewJamScene extends Phaser.Scene {
     g.translateCanvas(position.x + layerParallaxX, position.y + layerParallaxY);
     g.rotateCanvas(angle);
 
-    // 1. Layer-scaled ambient drop shadow onto lower layers
+    // 1. Warm espresso cast shadow onto lower ribbon layers
     const shadowOffsetX = 2 + layerIndex * 1.8 - layerParallaxX * 0.25;
-    const shadowOffsetY = 4.5 + layerIndex * 2.8 - layerParallaxY * 0.25;
-    g.fillStyle(0x000000, this.xrayMode ? 0.16 : (0.38 + layerIndex * 0.06) * explodeOffset.alphaMultiplier);
+    const shadowOffsetY = 4.8 + layerIndex * 2.8 - layerParallaxY * 0.25;
+    g.fillStyle(0x0b0604, this.xrayMode ? 0.16 : (0.44 + layerIndex * 0.06) * explodeOffset.alphaMultiplier);
     g.fillRoundedRect(-halfW + shadowOffsetX, -halfH + shadowOffsetY, width, height, radius);
 
-    // 2. 2.5D Extruded Side Thickness Rim (spatial toy/object depth + exploded boost)
-    const extrusionDepth = 4.2 + layerIndex * 0.7 + explodeOffset.extrusionBoost;
-    g.fillStyle(
-      this.themeId === 'stained_glass' ? 0x451a03 : 0x0f172a,
-      this.xrayMode ? 0.35 : 0.86 * explodeOffset.alphaMultiplier
-    );
+    // 2. Cream-Parchment Backing Thickness Lip underneath each satin ribbon
+    const extrusionDepth = 4.0 + layerIndex * 0.65 + explodeOffset.extrusionBoost;
+    g.fillStyle(0xd8c3a5, this.xrayMode ? 0.28 : 0.88 * explodeOffset.alphaMultiplier);
     g.fillRoundedRect(-halfW, -halfH + extrusionDepth, width, height, radius);
 
-    // 3. Theme-Specific Translucent Body
+    // 3. Woven Satin Ribbon Body (Translucent under Backlight [X])
     const rawBaseAlpha = this.xrayMode
       ? layerIndex === 0
-        ? 0.55
-        : 0.24
-      : this.themeId === 'stained_glass'
-      ? 0.74 + layerIndex * 0.04
-      : 0.82 + layerIndex * 0.04;
+        ? 0.56
+        : 0.26
+      : 0.92;
     const baseAlpha = rawBaseAlpha * explodeOffset.alphaMultiplier;
     g.fillStyle(colorEntry.numHex, baseAlpha);
     g.fillRoundedRect(-halfW, -halfH, width, height, radius);
 
-    // 4. Dynamic 2.5D Specular Light Sweep + Theme-Specific Artisanal Surface Details
+    // 4. Candlelight Satin Sheen + Color-Blind Woven Stitch Patterns
     if (!this.xrayMode) {
       const sweep = computeSpecularSweepOffset(this.tiltX, this.tiltY, this.elapsedSec + layerIndex * 0.6, width);
       const sx = Phaser.Math.Clamp(sweep.sweepCenterX, -halfW + 18, halfW - 18);
-      g.fillStyle(0xffffff, sweep.shimmerAlpha * explodeOffset.alphaMultiplier);
+      g.fillStyle(0xfffbeb, sweep.shimmerAlpha * 0.95 * explodeOffset.alphaMultiplier);
       g.fillRoundedRect(
         sx - sweep.bandWidth * 0.5,
         -halfH + 3,
         sweep.bandWidth,
         height - 6,
-        Math.min(8, radius * 0.5)
+        Math.min(7, radius * 0.5)
       );
 
-      if (this.themeId === 'stained_glass') {
-        // Cathedral Stained-Glass Mosaic Mullions + Soldered Gold Nodes
-        g.lineStyle(1.5, 0xfde68a, 0.48);
-        g.lineBetween(-halfW * 0.58, -halfH, -halfW * 0.18, halfH);
-        g.lineBetween(halfW * 0.18, -halfH, halfW * 0.58, halfH);
-        g.lineBetween(-halfW * 0.38, 0, halfW * 0.38, 0);
-        g.fillStyle(0xfef08a, 0.75);
-        g.fillCircle(-halfW * 0.38, 0, 2.2);
-        g.fillCircle(halfW * 0.38, 0, 2.2);
-
-        const rimColor =
-          plate.blockFlashAlpha > 0.05
-            ? 0xf43f5e
-            : this.explodeFactor > 0.1
-            ? 0x38bdf8
-            : plate.mode === 'pendulum'
-            ? 0xfef08a
-            : 0xfbbf24;
-        g.lineStyle(plate.blockFlashAlpha > 0.05 ? 3.2 : 2.3, rimColor, 0.92);
-        g.strokeRoundedRect(-halfW, -halfH, width, height, radius);
-      } else if (this.themeId === 'knit_yarn') {
-        // Woven Chevron Textile Ribbon + Stitched Hem Border
-        g.lineStyle(1.3, 0xffffff, 0.32);
-        for (let cx = -halfW + 14; cx < halfW - 14; cx += 14) {
-          g.lineBetween(cx - 4, -5, cx, 0);
-          g.lineBetween(cx, 0, cx - 4, 5);
-          g.lineBetween(cx + 2, -5, cx + 6, 0);
-          g.lineBetween(cx + 6, 0, cx + 2, 5);
+      // Unique Color-Blind Woven Textile Stitch Patterns per Ribbon Color
+      const insetX = Math.max(12, halfW - 14);
+      const stitchY = Math.max(5, halfH - 7);
+      if (colorEntry.weavePattern === 'double_gold') {
+        // Royal Crimson: Double Gold-Thread Selvedge Rails
+        g.lineStyle(1.4, 0xfde68a, 0.72);
+        g.lineBetween(-insetX, -stitchY, insetX, -stitchY);
+        g.lineBetween(-insetX, stitchY, insetX, stitchY);
+        g.lineStyle(0.9, 0xfef08a, 0.42);
+        g.lineBetween(-insetX + 6, -stitchY + 3, insetX - 6, -stitchY + 3);
+        g.lineBetween(-insetX + 6, stitchY - 3, insetX - 6, stitchY - 3);
+      } else if (colorEntry.weavePattern === 'guild_stripe') {
+        // Sunlit Ochre: Center Woven Guild Stripe
+        g.fillStyle(0xfffbeb, 0.22);
+        g.fillRect(-insetX, -4, insetX * 2, 8);
+        g.lineStyle(1.3, 0x78350f, 0.52);
+        g.lineBetween(-insetX, -4, insetX, -4);
+        g.lineBetween(-insetX, 4, insetX, 4);
+      } else if (colorEntry.weavePattern === 'herringbone') {
+        // Imperial Emerald: Stitched Herringbone Chevron Weave
+        g.lineStyle(1.3, 0xa7f3d0, 0.55);
+        for (let cx = -halfW + 16; cx < halfW - 16; cx += 14) {
+          g.lineBetween(cx - 4, -5, cx + 1, 0);
+          g.lineBetween(cx + 1, 0, cx - 4, 5);
         }
-        const rimColor =
-          plate.blockFlashAlpha > 0.05
-            ? 0xf43f5e
-            : this.explodeFactor > 0.1
-            ? 0x38bdf8
-            : 0xffffff;
-        g.lineStyle(2.1, rimColor, 0.78);
-        g.strokeRoundedRect(-halfW, -halfH, width, height, radius);
+      } else if (colorEntry.weavePattern === 'pearl_dash') {
+        // Ultramarine: Stitched Pearl-Dash Embroidery
+        g.fillStyle(0xe0f2fe, 0.72);
+        for (let cx = -halfW + 18; cx < halfW - 16; cx += 16) {
+          g.fillRoundedRect(cx - 4, -1.5, 8, 3, 1.5);
+        }
       } else {
-        // Retro Console Polycarbonate Shell + Gold PCB Bus & IC Solder Pads
-        g.lineStyle(1.4, 0xfef08a, 0.44);
-        g.lineBetween(-halfW + 18, -3, halfW - 18, -3);
-        g.lineBetween(-halfW + 26, 4, halfW - 26, 4);
-        g.fillStyle(0xfef08a, 0.75);
-        g.fillCircle(-halfW + 18, -3, 2.2);
-        g.fillCircle(halfW - 18, -3, 2.2);
-        g.fillCircle(0, 4, 2.2);
-
-        const rimColor =
-          plate.blockFlashAlpha > 0.05
-            ? 0xf43f5e
-            : this.explodeFactor > 0.1
-            ? 0x38bdf8
-            : 0xffffff;
-        g.lineStyle(2.1, rimColor, 0.72);
-        g.strokeRoundedRect(-halfW, -halfH, width, height, radius);
+        // Byzantine Plum: Scallop Lace Diamond Trim
+        g.lineStyle(1.3, 0xf3e8ff, 0.6);
+        for (let cx = -halfW + 18; cx < halfW - 18; cx += 18) {
+          g.strokeCircle(cx, 0, 4.2);
+        }
       }
 
-      // Top Specular Bevel Highlight Strip
-      g.fillStyle(0xffffff, 0.24 * explodeOffset.alphaMultiplier);
-      g.fillRoundedRect(-halfW + 8, -halfH + 3.5, Math.max(16, width - 16), 6.5, 3.2);
+      // Gold-stitched ribbon selvedge border
+      const rimColor =
+        plate.blockFlashAlpha > 0.05
+          ? 0xfda4af
+          : this.explodeFactor > 0.1
+          ? 0xfef08a
+          : plate.mode === 'pendulum'
+          ? 0xfef08a
+          : 0xf59e0b;
+      g.lineStyle(plate.blockFlashAlpha > 0.05 ? 3.2 : 2.1, rimColor, 0.9);
+      g.strokeRoundedRect(-halfW, -halfH, width, height, radius);
+
+      // Soft satin top bevel highlight
+      g.fillStyle(0xfffbeb, 0.2 * explodeOffset.alphaMultiplier);
+      g.fillRoundedRect(-halfW + 8, -halfH + 3, Math.max(16, width - 16), 5.5, 2.8);
     } else {
-      g.lineStyle(2, 0xffffff, 0.75);
+      g.lineStyle(2, 0xfef08a, 0.78);
       g.strokeRoundedRect(-halfW, -halfH, width, height, radius);
     }
 
-    // 5. Physical Machined Grommets / Eyelets + Pendulum Tension Ring
+    // 5. Burnished Brass Ribbon Grommets + Pendulum Pivot Aura
     for (let i = 0; i < plate.holeOffsets.length; i++) {
       const hole = plate.holeOffsets[i];
       const isOccupied = plate.attachedPinIds.has(hole.pinId);
 
-      g.fillStyle(0x0b0f17, isOccupied ? 0.58 : 0.94);
-      g.fillCircle(hole.localX, hole.localY, 10.5);
+      g.fillStyle(0x140c09, isOccupied ? 0.56 : 0.92);
+      g.fillCircle(hole.localX, hole.localY, 10.2);
 
-      g.lineStyle(
-        1.8,
-        this.themeId === 'stained_glass' ? 0xfbbf24 : 0xffffff,
-        isOccupied ? 0.45 : 0.72
-      );
-      g.strokeCircle(hole.localX, hole.localY, 11);
+      g.lineStyle(1.8, 0xfbbf24, isOccupied ? 0.5 : 0.85);
+      g.strokeCircle(hole.localX, hole.localY, 10.8);
 
-      // When plate is in 1-pin pendulum mode, pulse a golden kinetic pivot ring around the active pin hole
       if (isOccupied && plate.mode === 'pendulum') {
         const pulseRadius = 14.5 + Math.sin(this.elapsedSec * 7) * 1.8;
-        g.lineStyle(1.8, 0xfef08a, 0.85);
+        g.lineStyle(1.8, 0xfef08a, 0.88);
         g.strokeCircle(hole.localX, hole.localY, pulseRadius);
       }
     }

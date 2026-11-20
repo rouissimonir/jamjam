@@ -1,15 +1,15 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.tactileatelier.screwjam',
-  appName: 'Screw Jam: Tactile Workshop',
+  appId: 'com.royalpost.waxribbon',
+  appName: 'Royal Post: Wax & Ribbon',
   webDir: 'dist',
   server: {
     iosScheme: 'capacitor',
     cleartext: false,
   },
   ios: {
-    backgroundColor: '#0D121C',
+    backgroundColor: '#16100E',
     contentInset: 'never',
     preferredContentMode: 'mobile',
     scrollEnabled: false,
